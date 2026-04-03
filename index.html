@@ -73,6 +73,59 @@ function weekStart(ds) {
   d.setDate(d.getDate()+diff); return d.toISOString().split("T")[0];
 }
 
+// ─── GOOGLE SHEETS SYNC ──────────────────────────────────────────────────────
+async function syncToSheets(log, date, sheetsUrl, cycleStart, cycleLength) {
+  if (!sheetsUrl) return { ok: false, msg: "Paste your Apps Script URL first" };
+  const phase = getCyclePhase(cycleStart, cycleLength);
+  const timedMeds = log.timedMeds || {};
+  const spendItems = log.spendItems || [];
+  const fmtTimes = id => (timedMeds[id] || []).map(d => fmt12(d.time)).join(", ");
+  const fmtSymptoms = s => Object.entries(s || {}).map(([k,v]) => k+" ("+v+")").join(", ");
+  const sl = sleepDuration(log.bedtime, log.wakeTime);
+
+  const dailyRow = {
+    sheet: "Daily Log", date,
+    mood: log.mood||"", anxiety: log.anxiety||"", anger: log.anger||"", energy: log.energy||"",
+    notes: log.notes||"",
+    bedtime: log.bedtime||"", wakeTime: log.wakeTime||"",
+    sleepHours: sl ? sl.label : "", sleepQuality: log.sleepQuality||"",
+    sleepSupps: (log.sleepSupps||[]).join(", "),
+    hairWashed: log.hairWash||"",
+    breakfast: log.breakfast||"", breakfastFlags: ((log.mealSensitivity||{}).breakfast||[]).join(", "),
+    lunch: log.lunch||"", lunchFlags: ((log.mealSensitivity||{}).lunch||[]).join(", "),
+    dinner: log.dinner||"", dinnerFlags: ((log.mealSensitivity||{}).dinner||[]).join(", "),
+    snacks: log.snacks||"", snackFlags: ((log.mealSensitivity||{}).snacks||[]).join(", "),
+    dayFlags: (log.foodTagsDay||[]).join(", "), foodNotes: log.foodNotes||"",
+    symptoms: fmtSymptoms(log.symptoms),
+    vyvanse: fmtTimes("vyvanse"), adderallIR: fmtTimes("adderall_ir"),
+    adderallXR: fmtTimes("adderall_xr"), ativan: fmtTimes("ativan"), propranolol: fmtTimes("propranolol"),
+    supplements: (log.meds||[]).join(", "), habits: (log.habits||[]).join(", "),
+    skinRating: log.skinRating||"", skinConcerns: (log.skinConcerns||[]).join(", "),
+    skincareAM: ((log.skincare||{}).AM||[]).join(", "), skincarePM: ((log.skincare||{}).PM||[]).join(", "),
+    skinNotes: log.skinNotes||"",
+    totalSpend: spendItems.reduce((s,i)=>s+i.amount,0).toFixed(2),
+    netSpend: spendItems.filter(i=>!i.returnLikely).reduce((s,i)=>s+i.amount,0).toFixed(2),
+    cycleDay: phase ? phase.day : "", cyclePhase: phase ? PHASES[phase.phase].label : ""
+  };
+
+  const spendRows = spendItems.map(item => ({
+    sheet: "Spend Items", date,
+    note: item.note||"", category: item.category||"Other",
+    amount: item.amount.toFixed(2), returnLikely: item.returnLikely ? "TRUE" : "FALSE"
+  }));
+
+  try {
+    await fetch(sheetsUrl, {
+      method: "POST", mode: "no-cors",
+      headers: { "Content-Type": "text/plain" },
+      body: JSON.stringify({ dailyRow, spendRows })
+    });
+    return { ok: true, msg: "Synced ✓ " + date };
+  } catch(e) {
+    return { ok: false, msg: "Network error — check URL" };
+  }
+}
+
 // ─── PHASE DATA ──────────────────────────────────────────────────────────────
 const PHASES = {
   menstrual: {
@@ -663,10 +716,15 @@ function Dashboard({dailyLogs,cycleStart,beautyLogs,intervals,allHabits}){
 // ═══════════════════════════════════════════════════════════════════════════════
 function DailyLog({logs,setLogs,allHabits,cycleStart,cycleLength}){
   const [date,setDate]=useState(todayStr());
+  const [sheetsUrl,setSheetsUrl]=useLS("nm_sheets_url","");
+  const [syncing,setSyncing]=useState(false);
+  const [syncMsg,setSyncMsg]=useState("");
+  const [syncOk,setSyncOk]=useState(null);
   const log=logs[date]||{};
   const upd=(f,v)=>setLogs({...logs,[date]:{...(logs[date]||{}),[f]:v}});
   const updArr=(f,item,checked)=>{const list=log[f]||[];upd(f,checked?[...list,item]:list.filter(x=>x!==item));};
   const updSkin=(p,tod,checked)=>{const c=log.skincare||{};const l=c[tod]||[];upd("skincare",{...c,[tod]:checked?[...l,p]:l.filter(x=>x!==p)});};
+  const handleSync=async()=>{setSyncing(true);setSyncMsg("");const r=await syncToSheets(log,date,sheetsUrl,cycleStart,cycleLength);setSyncing(false);setSyncOk(r.ok);setSyncMsg(r.msg);setTimeout(()=>setSyncMsg(""),5000);};
   const sleep=sleepDuration(log.bedtime,log.wakeTime);
   const cycleSymptom=sym=>{const c=(log.symptoms||{})[sym]??null;const next=SEV_CYCLE[(SEV_CYCLE.indexOf(c)+1)%SEV_CYCLE.length];const s={...(log.symptoms||{})};if(next===null)delete s[sym];else s[sym]=next;upd("symptoms",s);};
 
@@ -817,6 +875,22 @@ function DailyLog({logs,setLogs,allHabits,cycleStart,cycleLength}){
       <div style={card}>
         <SHead>Daily Spend</SHead>
         <SpendLogger log={log} upd={upd} />
+      </div>
+
+      {/* Sync to Sheets */}
+      <div style={{...card, borderLeft:`3px solid ${syncOk===true?C.sage:syncOk===false?C.danger:C.border}`}}>
+        <SHead>Sync to Google Sheets</SHead>
+        <div style={{fontSize:12,color:C.muted,marginBottom:14,lineHeight:1.5}}>Paste your Apps Script URL once — it saves. Hit Sync to push today's log as a new row.</div>
+        <div style={{marginBottom:12}}>
+          <label style={lbl}>Apps Script URL</label>
+          <input value={sheetsUrl} onChange={e=>setSheetsUrl(e.target.value)} placeholder="https://script.google.com/macros/s/..." style={inp} />
+        </div>
+        <div style={{display:"flex",alignItems:"center",gap:12}}>
+          <button onClick={handleSync} disabled={syncing||!sheetsUrl} style={{padding:"9px 22px",borderRadius:8,background:syncing?"transparent":syncOk===true?C.sage:C.accent,color:syncing?C.muted:"#0A0908",border:syncing?`1px solid ${C.border}`:"none",cursor:sheetsUrl?"pointer":"not-allowed",fontSize:13,fontWeight:500,opacity:sheetsUrl?1:0.5,transition:"all 0.2s"}}>
+            {syncing?"Syncing...":syncOk===true?"☁ Synced ✓":"☁ Sync Today"}
+          </button>
+          {syncMsg&&<span style={{fontSize:12,color:syncOk?C.sage:C.danger}}>{syncMsg}</span>}
+        </div>
       </div>
     </div>
   );
