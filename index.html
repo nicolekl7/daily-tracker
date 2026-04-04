@@ -11,232 +11,101 @@
 <script src="https://cdnjs.cloudflare.com/ajax/libs/babel-standalone/7.23.2/babel.min.js"></script>
 <style>
 *,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
-html,body,#root{background:#0A0908;min-height:100vh;color:#EDE9E1;font-family:'DM Sans',sans-serif}
+html,body,#root{background:#0A0908;min-height:100vh}
 ::-webkit-scrollbar{width:4px;height:4px}
 ::-webkit-scrollbar-track{background:#131210}
 ::-webkit-scrollbar-thumb{background:#2D2920;border-radius:2px}
-.card{background:#1A1814;border:1px solid #272420;border-radius:14px;padding:20px;margin-bottom:15px}
-.nav-btn{background:transparent;border:none;color:#7A7165;cursor:pointer;padding:10px;font-size:12px;border-bottom:2px solid transparent;white-space:nowrap;text-transform:uppercase;letter-spacing:1px}
-.nav-btn.active{color:#C4856A;border-bottom:2px solid #C4856A}
-input,select,textarea{background:#131210;color:#EDE9E1;border:1px solid #272420;border-radius:8px;padding:8px;width:100%;font-size:14px}
-button{cursor:pointer;transition:all 0.2s}
-.grid-2{display:grid;grid-template-columns:1fr 1fr;gap:15px}
-.favorable{color:#7A9B8A}.neutral{color:#C9A96E}.pressure{color:#D97070}
-h1,h2,h3{font-family:'Cormorant Garamond',serif;font-weight:400}
-label{font-size:10px;text-transform:uppercase;color:#7A7165;letter-spacing:1px;display:block;margin-bottom:5px}
-input[type=range]{accent-color:#C4856A}
+input[type=range]{-webkit-appearance:none;appearance:none;background:#2D2920;height:4px;border-radius:2px;outline:none;padding:0!important;border:none!important;width:100%;cursor:pointer;display:block}
+input[type=range]::-webkit-slider-thumb{-webkit-appearance:none;width:14px;height:14px;border-radius:50%;background:#C4856A;cursor:pointer}
+input[type=checkbox]{cursor:pointer;accent-color:#C4856A}
+input:focus,textarea:focus,select:focus{outline:none;border-color:#C4856A!important}
+input[type=date]::-webkit-calendar-picker-indicator{filter:invert(0.4) sepia(0.3);cursor:pointer}
+select option{background:#1A1814;color:#EDE9E1}
+textarea{resize:vertical;font-family:'DM Sans',sans-serif}
+button{font-family:'DM Sans',sans-serif}
 </style>
 </head>
 <body><div id="root"></div>
 <script type="text/babel">
-const { useState, useEffect } = React;
+const { useState, useEffect, useRef, useMemo } = React;
 
-// --- HELPERS ---
+// ─── HELPERS ─────────────────────────────────────────────────────────────────
 const todayStr = () => new Date().toISOString().split("T")[0];
-const getDaysUntil = (date) => {
-  const diff = new Date(date) - new Date();
-  return Math.max(0, Math.ceil(diff / (1000 * 60 * 60 * 24)));
+const daysUntil = d => Math.max(0, Math.ceil((new Date(d) - new Date()) / 86400000));
+const fmt12 = t => { if(!t) return ""; const [h,m]=t.split(":").map(Number); return ((h%12)||12)+":"+String(m).padStart(2,"0")+(h>=12?" PM":" AM"); };
+
+function useLS(key, init) {
+  const [v,sv] = useState(() => { try{const s=localStorage.getItem(key);return s?JSON.parse(s):init;}catch{return init;} });
+  useEffect(() => { try{localStorage.setItem(key,JSON.stringify(v));}catch(e){} }, [key,v]);
+  return [v,sv];
+}
+
+function getCyclePhase(startDate, length=28) {
+  if(!startDate) return null;
+  const elapsed = Math.floor((new Date()-new Date(startDate))/86400000);
+  const day = (elapsed % length)+1;
+  const phase = day<=5?"menstrual":day<=13?"follicular":day<=16?"ovulatory":"luteal";
+  return { phase, day };
+}
+
+function sleepDuration(bed, wake) {
+  if(!bed||!wake) return null;
+  const [bh,bm]=bed.split(":").map(Number), [wh,wm]=wake.split(":").map(Number);
+  let mins=(wh*60+wm)-(bh*60+bm); if(mins<0)mins+=1440;
+  return { h:Math.floor(mins/60), m:mins%60, total:mins, label:Math.floor(mins/60)+"h"+(mins%60>0?" "+(mins%60)+"m":"") };
+}
+
+// ─── PHASE DATA ──────────────────────────────────────────────────────────────
+const PHASES = {
+  menstrual: { label:"Menstrual", color:"#C4856A", days:"1–5", mode:"gentle", eat:["Spinach & lentils (iron)","Dark chocolate (magnesium)","Ginger tea","Bone broth","Salmon (omega-3)"], avoid:["Alcohol","Caffeine stacking","Inflammatory oils"], move:"Gentle yoga, slow walks", selfcare:"Hot water bottle, magnesium bath", skin:"Skip actives, extra moisturizer", vyvanse:"Take with food, avoid caffeine." },
+  follicular: { label:"Follicular", color:"#7A9B8A", days:"6–13", mode:"lockin", eat:["Fermented foods","Lean protein","Cruciferous veg","Flaxseed"], avoid:["Excess sugar","Ultra-processed food"], move:"Strength training, cardio", selfcare:"Ideal for new routines & planning", skin:"Best tolerance for actives", vyvanse:"Normal timing, peak tolerance." },
+  ovulatory: { label:"Ovulatory", color:"#C9A96E", days:"14–16", mode:"lockin", eat:["Pumpkin seeds","Raw veg & berries","Pomegranate"], avoid:["Heavy starchy meals","Excess sodium"], move:"Peak window — HIIT, heavy lifts", selfcare:"Schedule social events", skin:"Peak glow phase", vyvanse:"Operating at peak." },
+  luteal: { label:"Luteal", color:"#9B8070", days:"17–28", mode:"gentle", eat:["Sweet potato, oats","Dark chocolate","Turkey or chicken"], avoid:["Alcohol","High sodium","Caffeine"], move:"Pilates, yin yoga", selfcare:"Protect sleep ruthlessly", skin:"Prone to flares — reduce actives", vyvanse:"⚠️ Take before 9am. Sensitivity is high." }
 };
 
+// ─── LISTS & CONSTANTS ───────────────────────────────────────────────────────
+const TIMED_MEDS = [
+  {id:"vyvanse", label:"Vyvanse", color:"#C4856A"},
+  {id:"adderall_ir", label:"Adderall IR", color:"#C9A96E"},
+  {id:"ativan", label:"Ativan", color:"#8A9BAA"}
+];
+
+const BEAUTY_ITEMS = [
+  {id:"botox", label:"Botox", interval:90, icon:"💉"},
+  {id:"facial", label:"Facial", interval:28, icon:"🧖"},
+  {id:"nails", label:"Nails", interval:14, icon:"💅"}
+];
+
+const C = {bg:"#0A0908",surface:"#131210",card:"#1A1814",border:"#272420",text:"#EDE9E1",muted:"#7A7165",faint:"#3D3830",accent:"#C4856A",gold:"#C9A96E",sage:"#7A9B8A",danger:"#D97070",white:"#F7F4EF"};
+const serif = {fontFamily:"'Cormorant Garamond', serif"};
+const cardStyle = {background:C.card,border:`1px solid ${C.border}`,borderRadius:14,padding:"20px 22px"};
+const inpStyle = {background:C.surface,color:C.text,border:`1px solid ${C.border}`,borderRadius:8,padding:"9px 13px",fontSize:13,width:"100%"};
+const lblStyle = {fontSize:10,letterSpacing:"0.12em",textTransform:"uppercase",color:C.muted,marginBottom:6,display:"block",fontWeight:500};
+
+// ─── MAIN APP ────────────────────────────────────────────────────────────────
 const NicoleOS = () => {
-  const [activeTab, setActiveTab] = useState("Dashboard");
-  const [eurRate, setEurRate] = useState(1.10);
-  const [logs, setLogs] = useState(() => JSON.parse(localStorage.getItem("nicole_logs") || "{}"));
-
-  useEffect(() => {
-    localStorage.setItem("nicole_logs", JSON.stringify(logs));
-  }, [logs]);
-
-  useEffect(() => {
-    fetch("https://open.er-api.com/v6/latest/EUR")
-      .then(res => res.json())
-      .then(data => setEurRate(data.rates.USD))
-      .catch(() => console.log("Rate fetch failed"));
-  }, []);
-
+  const [tab, setTab] = useLS("nm_active_tab", "dashboard");
+  const [dailyLogs, setDailyLogs] = useLS("nm_daily_logs", {});
+  const [beautyLogs, setBeautyLogs] = useLS("nm_beauty_logs", {});
+  const [cycleStart, setCycleStart] = useLS("nm_cycle_start", "");
+  
   const upd = (field, val) => {
     const d = todayStr();
-    setLogs(prev => ({ ...prev, [d]: { ...prev[d], [field]: val } }));
+    setDailyLogs(prev => ({ ...prev, [d]: { ...prev[d], [field]: val } }));
   };
 
-  // --- TAB: DASHBOARD ---
+  const log = dailyLogs[todayStr()] || {};
+
+  // --- DASHBOARD ---
   const renderDashboard = () => (
-    <div>
-      <h1 style={{fontSize:'32px', marginBottom:'20px'}}>Good morning, Nicole.</h1>
-      <div className="grid-2">
-        <div className="card" style={{textAlign:'center'}}>
-          <label>Wedding Day</label>
-          <h2 style={{fontSize:'42px', color:'#7A9B8A'}}>{getDaysUntil("2026-09-17")}</h2>
-          <p style={{fontSize:'12px', color:'#7A7165'}}>Tuscany, Italy</p>
+    <div style={{display:"flex",flexDirection:"column",gap:20}}>
+      <h1 style={{...serif,fontSize:32,color:C.white}}>Good morning, Nicole.</h1>
+      <div style={{display:"flex",gap:10}}>
+        <div style={{...cardStyle,flex:1,textAlign:"center"}}>
+          <label style={lblStyle}>Wedding Day</label>
+          <div style={{...serif,fontSize:44,color:C.sage}}>{daysUntil("2026-09-17")}</div>
+          <div style={{fontSize:11,color:C.muted}}>Tuscany</div>
         </div>
-        <div className="card" style={{textAlign:'center'}}>
-          <label>Bachelorette</label>
-          <h2 style={{fontSize:'42px', color:'#C4856A'}}>{getDaysUntil("2026-07-30")}</h2>
-          <p style={{fontSize:'12px', color:'#7A7165'}}>Delaware</p>
-        </div>
-      </div>
-      <div className="card">
-        <label>Cycle Advice: Follicular</label>
-        <div style={{display:'grid', gridTemplateColumns:'1fr 1fr', gap:'12px', fontSize:'13px', marginTop:'10px'}}>
-          <div><strong>Eat:</strong> Probiotics, Lean Protein</div>
-          <div><strong>Move:</strong> Heavy Lifts, Cardio</div>
-          <div><strong>Skin:</strong> Best for Actives</div>
-          <div><strong>Self:</strong> Plan & Socialize</div>
-        </div>
-      </div>
-    </div>
-  );
-
-  // --- TAB: DAILY LOG (WITH SLEEP UPDATES) ---
-  const renderDailyLog = () => {
-    const log = logs[todayStr()] || {};
-    return (
-      <div>
-        <h2>Daily Check-in</h2>
-        <div className="card">
-          <label>Oura Sleep Data</label>
-          <div style={{display:'grid', gridTemplateColumns:'1fr 1fr', gap:'10px', marginBottom:'15px'}}>
-            <div>
-              <label style={{fontSize:'9px'}}>Hours</label>
-              <input type="number" placeholder="Hrs" value={log.sleepHrs || ""} onChange={e => upd("sleepHrs", e.target.value)} />
-            </div>
-            <div>
-              <label style={{fontSize:'9px'}}>Minutes</label>
-              <input type="number" placeholder="Min" value={log.sleepMin || ""} onChange={e => upd("sleepMin", e.target.value)} />
-            </div>
-          </div>
-          <div className="grid-2">
-            <div>
-              <label style={{fontSize:'9px'}}>Readiness</label>
-              <input type="number" placeholder="Score" value={log.readiness || ""} onChange={e => upd("readiness", e.target.value)} />
-            </div>
-            <div>
-              <label style={{fontSize:'9px'}}>HRV</label>
-              <input type="number" placeholder="ms" value={log.hrv || ""} onChange={e => upd("hrv", e.target.value)} />
-            </div>
-          </div>
-        </div>
-        <div className="card">
-          <label>Mood & Energy</label>
-          <input type="range" min="1" max="10" value={log.mood || 5} onChange={e => upd("mood", e.target.value)} />
-          <textarea style={{marginTop:'10px'}} value={log.notes || ""} onChange={e => upd("notes", e.target.value)} placeholder="How are you feeling today?" rows="3" />
-        </div>
-      </div>
-    );
-  };
-
-  // --- TAB: SKIN + GALLERY (LIBRARY ACCESS) ---
-  const [showGallery, setShowGallery] = useState(false);
-  const renderSkin = () => {
-    const log = logs[todayStr()] || {};
-    const photoHistory = Object.entries(logs)
-      .filter(([_, data]) => data.skinPhoto)
-      .sort((a, b) => b[0].localeCompare(a[0]));
-
-    const onPhoto = e => {
-      const file = e.target.files[0];
-      if (!file) return;
-      const reader = new FileReader();
-      reader.onloadend = () => upd("skinPhoto", reader.result);
-      reader.readAsDataURL(file);
-    };
-
-    return (
-      <div>
-        <div style={{display:'flex', justifyContent:'space-between', alignItems:'center', marginBottom:'15px'}}>
-          <h2>Skin Health</h2>
-          <button onClick={() => setShowGallery(!showGallery)} style={{fontSize:'11px', padding:'5px 12px', borderRadius:'20px', border:'1px solid #C4856A', background:showGallery?'#C4856A':'transparent', color:showGallery?'#0A0908':'#C4856A'}}>
-            {showGallery ? "Back to Log" : "View Gallery"}
-          </button>
-        </div>
-
-        {!showGallery ? (
-          <>
-            <div className="card">
-              <label>Condition Rating</label>
-              <input type="range" min="1" max="10" value={log.skinRating || 5} onChange={e => upd("skinRating", e.target.value)} />
-              <div style={{textAlign:'right', fontSize:'18px', color:'#C4856A'}}>{log.skinRating || 5}/10</div>
-              <label style={{marginTop:'15px'}}>Daily Notes</label>
-              <textarea value={log.skinNotes || ""} onChange={e => upd("skinNotes", e.target.value)} placeholder="SkinMedica/SkinBetter check..." rows="3" />
-            </div>
-            <div className="card">
-              <label>Progress Photo</label>
-              <div style={{display:'flex', gap:'15px', alignItems:'center'}}>
-                <label style={{flex:1, height:'100px', border:'2px dashed #272420', borderRadius:'12px', display:'flex', flexDirection:'column', alignItems:'center', justifyContent:'center', cursor:'pointer'}}>
-                  <span style={{fontSize:'20px'}}>📸</span>
-                  <span style={{fontSize:'10px'}}>Upload or Take</span>
-                  <input type="file" accept="image/*" onChange={onPhoto} style={{display:'none'}} />
-                </label>
-                {log.skinPhoto && <img src={log.skinPhoto} style={{width:'100px', height:'100px', borderRadius:'12px', objectFit:'cover'}} />}
-              </div>
-            </div>
-          </>
-        ) : (
-          <div style={{display:'grid', gridTemplateColumns:'1fr 1fr 1fr', gap:'10px'}}>
-            {photoHistory.map(([date, data]) => (
-              <div key={date}>
-                <img src={data.skinPhoto} style={{width:'100%', aspectRatio:'1/1', borderRadius:'8px', objectFit:'cover'}} />
-                <div style={{fontSize:'9px', textAlign:'center', marginTop:'4px', color:'#7A7165'}}>{date}</div>
-              </div>
-            ))}
-          </div>
-        )}
-      </div>
-    );
-  };
-
-  // --- TAB: WEDDING ---
-  const renderWedding = () => {
-    const usd = (val) => (val * eurRate).toFixed(2);
-    const status = eurRate < 1.10 ? "favorable" : eurRate > 1.15 ? "pressure" : "neutral";
-    return (
-      <div>
-        <h2>Wedding & FX</h2>
-        <div className="card" style={{textAlign:'center'}}>
-          <label>Live EUR/USD Rate</label>
-          <h1 style={{fontSize:'38px'}} className={status}>${eurRate.toFixed(4)}</h1>
-          <p className={status} style={{fontSize:'12px', fontWeight:'bold'}}>{eurRate < 1.10 ? "Favorable: Strong USD" : eurRate > 1.15 ? "High Cost: Weak USD" : "Neutral Market"}</p>
-        </div>
-        <div className="card">
-          <label>Quick Convert</label>
-          <div style={{display:'flex', justifyContent:'space-between', padding:'8px 0', borderBottom:'1px solid #272420'}}>
-            <span>€1,000 Vendor Payment:</span>
-            <span style={{color:'#7A9B8A'}}>${usd(1000)}</span>
-          </div>
-          <div style={{display:'flex', justifyContent:'space-between', padding:'8px 0'}}>
-            <span>€5,000 Venue Deposit:</span>
-            <span style={{color:'#7A9B8A'}}>${usd(5000)}</span>
-          </div>
-        </div>
-      </div>
-    );
-  };
-
-  return (
-    <div style={{maxWidth:'500px', margin:'0 auto', padding:'20px'}}>
-      <nav style={{display:'flex', overflowX:'auto', gap:'15px', marginBottom:'20px', paddingBottom:'10px', borderBottom:'1px solid #131210'}}>
-        {["Dashboard", "Daily Log", "Skin", "Hair & Beauty", "Cycle", "Habits", "Spend", "Wedding"].map(t => (
-          <button key={t} onClick={() => setActiveTab(t)} className={`nav-btn ${activeTab === t ? 'active' : ''}`}>{t}</button>
-        ))}
-      </nav>
-      <main>
-        {activeTab === "Dashboard" && renderDashboard()}
-        {activeTab === "Daily Log" && renderDailyLog()}
-        {activeTab === "Skin" && renderSkin()}
-        {activeTab === "Wedding" && renderWedding()}
-        {!["Dashboard", "Daily Log", "Skin", "Wedding"].includes(activeTab) && (
-          <div className="card" style={{textAlign:'center', color:'#7A7165', padding:'40px 20px'}}>
-            <h2>{activeTab}</h2>
-            <p>Structure ready for data input.</p>
-          </div>
-        )}
-      </main>
-    </div>
-  );
-};
-
-const root = ReactDOM.createRoot(document.getElementById('root'));
-root.render(<NicoleOS />);
-</script>
-</body>
-</html>
+        <div style={{...cardStyle,flex:1,textAlign:"center"}}>
+          <label style={lblStyle}>Bachelorette</label>
+          <div style={{...serif,fontSize
