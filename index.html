@@ -568,12 +568,16 @@ function Dashboard({dailyLogs,setDailyLogs,cycleStart,cycleLength,beautyLogs,int
             {upcoming.map(item=>{
               const overdue=item.daysLeft<0;const soon=item.daysLeft<=7&&item.daysLeft>=0;
               const col=overdue?C.danger:soon?C.gold:C.muted;
+              const rs=new Date(item.dueDate);rs.setDate(rs.getDate()-3);
+              const re=new Date(item.dueDate);re.setDate(re.getDate()+4);
+              const sameM=rs.getMonth()===re.getMonth();
+              const bookRange=sameM?rs.toLocaleDateString("en-US",{month:"short"})+" "+rs.getDate()+"–"+re.getDate():rs.toLocaleDateString("en-US",{month:"short",day:"numeric"})+"–"+re.toLocaleDateString("en-US",{month:"short",day:"numeric"});
               return(
                 <div key={item.id} style={{display:"flex",justifyContent:"space-between",alignItems:"center",padding:"10px 13px",borderRadius:9,background:overdue?C.danger+"08":soon?C.gold+"08":C.surface,border:`1px solid ${overdue?C.danger+"33":soon?C.gold+"33":C.border}`}}>
                   <div style={{display:"flex",alignItems:"center",gap:8}}><span style={{fontSize:17}}>{item.icon}</span><span style={{fontSize:13}}>{item.label}</span></div>
                   <div style={{textAlign:"right"}}>
-                    <div style={{...serif,fontSize:20,color:col,lineHeight:1}}>{Math.abs(item.daysLeft)}<span style={{fontSize:11}}>d</span></div>
-                    <div style={{fontSize:9,color:C.faint}}>{overdue?"overdue":soon?"soon":item.dueDate.toLocaleDateString("en-US",{month:"short",day:"numeric"})}</div>
+                    {!overdue&&<div style={{fontSize:9,color:C.faint,marginBottom:1}}>book around</div>}
+                    <div style={{fontSize:12,fontWeight:500,color:col}}>{overdue?"overdue — book now":bookRange}</div>
                   </div>
                 </div>
               );
@@ -1109,7 +1113,7 @@ function HairBeautyTab({dailyLogs,beautyLogs,setBeautyLogs,intervals,setInterval
         <SHead>Log a Wash</SHead>
         <div style={{display:"grid",gridTemplateColumns:"1fr 1fr 1fr",gap:10,marginBottom:12}}>
           <div><label style={lbl}>Date</label><input type="date" value={form.date} onChange={e=>setForm({...form,date:e.target.value})} style={inp} /></div>
-          <div><label style={lbl}>Drying Method</label><select value={form.method} onChange={e=>setForm({...form,method:e.target.value})} style={inp}><option value="air dry">Air Dry</option><option value="blow dry">Blow Dry</option><option value="diffuse">Diffuse</option><option value="braid out">Braid Out</option></select></div>
+          <div><label style={lbl}>Drying Method</label><select value={form.method} onChange={e=>setForm({...form,method:e.target.value})} style={inp}><option value="air dry">Air Dry</option><option value="rough dry">Rough Dry</option><option value="blow out">Blow Out</option></select></div>
           <div><label style={lbl}>Treatment</label><select value={form.conditioner} onChange={e=>setForm({...form,conditioner:e.target.value})} style={inp}><option value="regular">Regular conditioner</option><option value="mask">Hair mask</option><option value="none">Neither</option></select></div>
         </div>
         <div style={{marginBottom:12}}>
