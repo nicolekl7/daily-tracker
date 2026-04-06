@@ -882,8 +882,25 @@ function SkinTab({logs,setLogs,cycleStart,cycleLength}){
   const [openMonths,setOpenMonths]=useState({});
   const log=logs[date]||{};
   const upd=(f,v)=>setLogs({...logs,[date]:{...(logs[date]||{}),[f]:v}});
-  const fileRef=useRef();
+  const fileRefLeft=useRef();
+  const fileRefFront=useRef();
+  const fileRefRight=useRef();
   const concerns=["Rosacea flare","Breakout","Dryness","Oiliness","Sensitivity","Texture","Dullness","Redness","Puffiness","Good skin day"];
+  const mkPhotoSlot=(field,ref,label)=>(
+    <div style={{borderRadius:12,overflow:"hidden",border:`1px solid ${log[field]?C.border:C.border}`,cursor:"pointer",display:"flex",flexDirection:"column"}} onClick={()=>ref.current.click()}>
+      <input ref={ref} type="file" accept="image/*" onChange={e=>{const f=e.target.files[0];if(!f)return;const r=new FileReader();r.onload=ev=>upd(field,ev.target.result);r.readAsDataURL(f);}} style={{display:"none"}} />
+      <div style={{position:"relative",flex:1}}>
+        {log[field]
+          ?<img src={log[field]} alt={label} style={{width:"100%",aspectRatio:"3/4",objectFit:"cover",display:"block"}} />
+          :<div style={{aspectRatio:"3/4",background:C.surface,display:"flex",flexDirection:"column",alignItems:"center",justifyContent:"center",color:C.faint}}>
+            <div style={{fontSize:22,marginBottom:5}}>📸</div>
+            <div style={{fontSize:10}}>tap to add</div>
+          </div>}
+        {log[field]&&<button onClick={e=>{e.stopPropagation();upd(field,null);}} style={{position:"absolute",top:5,right:5,width:20,height:20,borderRadius:"50%",background:"#00000077",border:"none",color:"#fff",cursor:"pointer",fontSize:12,display:"flex",alignItems:"center",justifyContent:"center",padding:0}}>×</button>}
+      </div>
+      <div style={{padding:"5px 0",fontSize:10,color:log[field]?C.muted:C.faint,textAlign:"center",background:C.card,borderTop:`1px solid ${C.border}`}}>{label}</div>
+    </div>
+  );
 
   // Cycle-phase diff: find photo from same cycle day ~1 cycle ago
   const cyclePhaseMatch=useMemo(()=>{
@@ -898,18 +915,19 @@ function SkinTab({logs,setLogs,cycleStart,cycleLength}){
     for(let offset=-4;offset<=4;offset++){
       const d=new Date(prevDate);d.setDate(d.getDate()+offset);
       const k=d.toISOString().split("T")[0];
-      if(logs[k]?.skinPhoto){
+      if(logs[k]?.skinPhoto||logs[k]?.skinPhotoFront){
         const el=Math.floor((new Date(k)-new Date(cycleStart))/86400000);
         const cd=(el%cycleLength)+1;
-        return{date:k,photo:logs[k].skinPhoto,rating:logs[k].skinRating,cycleDay:cd,concerns:logs[k].skinConcerns||[]};
+        return{date:k,photo:logs[k].skinPhotoFront||logs[k].skinPhoto,rating:logs[k].skinRating,cycleDay:cd,concerns:logs[k].skinConcerns||[]};
       }
     }
     return null;
   },[logs,cycleStart,cycleLength]);
 
   const photos=useMemo(()=>
-    Object.entries(logs).filter(([,v])=>v&&v.skinPhoto)
-      .map(([d,v])=>({date:d,photo:v.skinPhoto,rating:v.skinRating,concerns:v.skinConcerns||[]}))
+    Object.entries(logs)
+      .filter(([,v])=>v&&(v.skinPhoto||v.skinPhotoFront||v.skinPhotoLeft||v.skinPhotoRight))
+      .map(([d,v])=>({date:d,photo:v.skinPhotoFront||v.skinPhoto,photoLeft:v.skinPhotoLeft,photoRight:v.skinPhotoRight,rating:v.skinRating,concerns:v.skinConcerns||[]}))
       .sort((a,b)=>new Date(b.date)-new Date(a.date))
   ,[logs]);
 
@@ -936,22 +954,22 @@ function SkinTab({logs,setLogs,cycleStart,cycleLength}){
         </div>
       </div>
 
-      {/* Journal */}
+      {/* Photos — left / front / right */}
+      <div style={{display:"grid",gridTemplateColumns:"1fr 1fr 1fr",gap:10}}>
+        {mkPhotoSlot("skinPhotoLeft",fileRefLeft,"← Left")}
+        {mkPhotoSlot("skinPhotoFront",fileRefFront,"Front")}
+        {mkPhotoSlot("skinPhotoRight",fileRefRight,"Right →")}
+      </div>
+
+      {/* Rating + observations */}
       <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:14}}>
-        <div onClick={()=>fileRef.current.click()} style={{...card,cursor:"pointer",minHeight:220,display:"flex",alignItems:"center",justifyContent:"center",overflow:"hidden",padding:0}}>
-          <input ref={fileRef} type="file" accept="image/*" onChange={e=>{const f=e.target.files[0];if(!f)return;const r=new FileReader();r.onload=ev=>upd("skinPhoto",ev.target.result);r.readAsDataURL(f);}} style={{display:"none"}} />
-          {log.skinPhoto?<img src={log.skinPhoto} alt="skin" style={{width:"100%",height:"100%",minHeight:220,objectFit:"cover",borderRadius:14}} />:
-          <div style={{textAlign:"center",color:C.faint,padding:30}}><div style={{fontSize:32,marginBottom:8}}>📸</div><div style={{fontSize:13}}>Morning photo</div><div style={{fontSize:11,marginTop:3}}>Tap to upload</div></div>}
+        <div style={card}>
+          <div style={lbl}>Skin Rating</div>
+          <div style={{display:"flex",alignItems:"center",gap:10}}><input type="range" min={1} max={10} value={log.skinRating||5} onChange={e=>upd("skinRating",+e.target.value)} /><span style={{...serif,fontSize:28,color:C.accent,minWidth:36}}>{log.skinRating||5}</span></div>
         </div>
-        <div style={{display:"flex",flexDirection:"column",gap:10}}>
-          <div style={card}>
-            <div style={lbl}>Skin Rating</div>
-            <div style={{display:"flex",alignItems:"center",gap:10}}><input type="range" min={1} max={10} value={log.skinRating||5} onChange={e=>upd("skinRating",+e.target.value)} /><span style={{...serif,fontSize:28,color:C.accent,minWidth:36}}>{log.skinRating||5}</span></div>
-          </div>
-          <div style={{...card,flex:1}}>
-            <label style={lbl}>Observations</label>
-            <textarea rows={6} value={log.skinObs||""} onChange={e=>upd("skinObs",e.target.value)} placeholder={"Redness areas\nBreakout location\nTexture + tone\nGlow or dullness"} style={{...inp,resize:"none"}} />
-          </div>
+        <div style={card}>
+          <label style={lbl}>Observations</label>
+          <textarea rows={4} value={log.skinObs||""} onChange={e=>upd("skinObs",e.target.value)} placeholder={"Redness areas\nBreakout location\nTexture + tone\nGlow or dullness"} style={{...inp,resize:"none"}} />
         </div>
       </div>
 
@@ -980,7 +998,7 @@ function SkinTab({logs,setLogs,cycleStart,cycleLength}){
           <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:14}}>
             <div>
               <div style={{...lbl,marginBottom:8}}>Today · Day {getCyclePhase(cycleStart,cycleLength)?.day}</div>
-              {log.skinPhoto?<img src={log.skinPhoto} alt="today" style={{width:"100%",aspectRatio:"1",objectFit:"cover",borderRadius:9}} />:<div style={{aspectRatio:"1",background:C.surface,borderRadius:9,display:"flex",alignItems:"center",justifyContent:"center",color:C.faint,fontSize:12}}>No photo today</div>}
+              {(log.skinPhotoFront||log.skinPhoto)?<img src={log.skinPhotoFront||log.skinPhoto} alt="today" style={{width:"100%",aspectRatio:"1",objectFit:"cover",borderRadius:9}} />:<div style={{aspectRatio:"1",background:C.surface,borderRadius:9,display:"flex",alignItems:"center",justifyContent:"center",color:C.faint,fontSize:12}}>No photo today</div>}
               {log.skinRating&&<div style={{...serif,fontSize:20,color:C.accent,marginTop:6}}>{log.skinRating}<span style={{fontSize:11,color:C.muted}}>/10</span></div>}
               {(log.skinConcerns||[]).length>0&&<div style={{display:"flex",flexWrap:"wrap",gap:3,marginTop:4}}>{(log.skinConcerns||[]).map(c=><span key={c} style={{fontSize:10,padding:"2px 7px",borderRadius:8,background:C.accent+"18",color:C.accent}}>{c}</span>)}</div>}
             </div>
@@ -1041,7 +1059,17 @@ function SkinTab({logs,setLogs,cycleStart,cycleLength}){
         </div>
       )}
 
-      {expanded&&<Modal onClose={()=>setExpanded(null)}><div style={{...card,padding:0,overflow:"hidden"}}><img src={expanded.photo} alt="" style={{width:"100%",maxHeight:600,objectFit:"contain",background:"#0A0908"}} /><div style={{padding:"14px 18px"}}><div style={{display:"flex",justifyContent:"space-between",alignItems:"center"}}><div style={{...serif,fontSize:18,color:C.white}}>{expanded.date}</div>{expanded.rating&&<div style={{...serif,fontSize:26,color:C.accent}}>{expanded.rating}/10</div>}</div>{expanded.concerns.length>0&&<div style={{display:"flex",flexWrap:"wrap",gap:5,marginTop:8}}>{expanded.concerns.map(c=><span key={c} style={{fontSize:11,padding:"2px 9px",borderRadius:10,background:C.accent+"18",color:C.accent}}>{c}</span>)}</div>}</div></div></Modal>}
+      {expanded&&(
+        <Modal onClose={()=>setExpanded(null)}>
+          <div style={{...card,padding:0,overflow:"hidden"}}>
+            {(()=>{const slots=[{src:expanded.photoLeft,label:"← Left"},{src:expanded.photo,label:"Front"},{src:expanded.photoRight,label:"Right →"}].filter(p=>p.src);return slots.length>0&&(<div style={{display:"grid",gridTemplateColumns:`repeat(${slots.length},1fr)`,gap:2}}>{slots.map(p=>(<div key={p.label} style={{position:"relative"}}><img src={p.src} alt={p.label} style={{width:"100%",aspectRatio:"3/4",objectFit:"cover",display:"block"}} /><div style={{position:"absolute",bottom:0,left:0,right:0,textAlign:"center",fontSize:9,color:"#ffffffbb",padding:"5px",background:"linear-gradient(transparent,#00000055)"}}>{p.label}</div></div>))}</div>);})()}
+            <div style={{padding:"14px 18px"}}>
+              <div style={{display:"flex",justifyContent:"space-between",alignItems:"center"}}><div style={{...serif,fontSize:18,color:C.white}}>{expanded.date}</div>{expanded.rating&&<div style={{...serif,fontSize:26,color:C.accent}}>{expanded.rating}/10</div>}</div>
+              {expanded.concerns.length>0&&<div style={{display:"flex",flexWrap:"wrap",gap:5,marginTop:8}}>{expanded.concerns.map(c=><span key={c} style={{fontSize:11,padding:"2px 9px",borderRadius:10,background:C.accent+"18",color:C.accent}}>{c}</span>)}</div>}
+            </div>
+          </div>
+        </Modal>
+      )}
     </div>
   );
 }
@@ -1534,7 +1562,7 @@ function App(){
             <div style={{fontFamily:"'Cormorant Garamond', serif",fontSize:16,color:C.accent,letterSpacing:"0.22em",fontStyle:"italic",flexShrink:0}}>nicole</div>
             <div style={{display:"flex",gap:3,overflowX:"auto",paddingBottom:2}}>
               {TABS.map(t=>{
-                const noSkinPhoto=t.id==="skin"&&!dailyLogs[todayStr()]?.skinPhoto;
+                const tl=dailyLogs[todayStr()];const noSkinPhoto=t.id==="skin"&&!(tl?.skinPhoto||tl?.skinPhotoFront||tl?.skinPhotoLeft||tl?.skinPhotoRight);
                 return(
                   <button key={t.id} onClick={()=>setTab(t.id)} style={{padding:"5px 13px",borderRadius:20,fontSize:11,fontWeight:500,letterSpacing:"0.04em",cursor:"pointer",whiteSpace:"nowrap",border:`1px solid ${tab===t.id?C.accent:C.border}`,background:tab===t.id?C.accent+"18":"transparent",color:tab===t.id?C.accent:C.muted,transition:"all 0.15s",position:"relative"}}>
                     {t.label}
