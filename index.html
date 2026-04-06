@@ -394,7 +394,7 @@ function SpendLogger({log,upd}){
 // ═══════════════════════════════════════════════════════════════════════════════
 // DASHBOARD
 // ═══════════════════════════════════════════════════════════════════════════════
-function Dashboard({dailyLogs,cycleStart,cycleLength,beautyLogs,intervals,allHabits}){
+function Dashboard({dailyLogs,setDailyLogs,cycleStart,cycleLength,beautyLogs,intervals,allHabits}){
   const phase=getCyclePhase(cycleStart,cycleLength);
   const pd=phase?PHASES[phase.phase]:null;
   const today=dailyLogs[todayStr()]||{};
@@ -413,6 +413,34 @@ function Dashboard({dailyLogs,cycleStart,cycleLength,beautyLogs,intervals,allHab
   }).filter(Boolean).sort((a,b)=>a.daysLeft-b.daysLeft);
 
   const addTask=()=>{if(!newTask.trim())return;setTasks([...tasks,{id:Date.now(),text:newTask,done:false}]);setNewTask("");};
+
+  // Quick-log: write mood/energy/skin directly from Dashboard
+  const quickUpd=(f,v)=>setDailyLogs(prev=>({...prev,[todayStr()]:{...(prev[todayStr()]||{}),[f]:v}}));
+
+  // Vyvanse alert: luteal phase + any dose logged after 9am
+  const vyvanseAlert=phase?.phase==="luteal"&&(today.timedMeds?.vyvanse||[]).some(d=>d.time>"09:00");
+
+  // Flare predictor: compare today's conditions against historical skin flare days
+  const flareRisk=useMemo(()=>{
+    if(!phase||!cycleStart)return null;
+    const flareDates=Object.entries(dailyLogs).filter(([,v])=>v?.symptoms?.["Skin flare"]).map(([d])=>d);
+    if(flareDates.length<3)return null;
+    const tl=dailyLogs[todayStr()]||{};
+    const tc={luteal:phase.phase==="luteal",lowSleep:(tl.ouraSleep&&tl.ouraSleep<70)||(tl.sleepQuality&&tl.sleepQuality<5),alcohol:Object.values(tl.mealSensitivity||{}).some(a=>a.includes("Alcohol")),skippedAzelaic:!!(tl.skincare)&&!((tl.skincare.AM||[]).includes("Azelaic Acid 15%"))};
+    if(Object.values(tc).filter(Boolean).length<2)return null;
+    let matches=0;
+    flareDates.forEach(d=>{
+      const v=dailyLogs[d]||{};
+      const el=Math.floor((new Date(d)-new Date(cycleStart))/86400000);
+      const cd=(el%cycleLength)+1;
+      const fp=cd<=5?"menstrual":cd<=13?"follicular":cd<=16?"ovulatory":"luteal";
+      const fc={luteal:fp==="luteal",lowSleep:(v.ouraSleep&&v.ouraSleep<70)||(v.sleepQuality&&v.sleepQuality<5),alcohol:Object.values(v.mealSensitivity||{}).some(a=>a.includes("Alcohol")),skippedAzelaic:!!(v.skincare)&&!((v.skincare.AM||[]).includes("Azelaic Acid 15%"))};
+      if(Object.keys(tc).filter(k=>tc[k]&&fc[k]).length>=2)matches++;
+    });
+    if(!matches)return null;
+    const factors=Object.entries({luteal:"Luteal phase",lowSleep:"Low sleep",alcohol:"Alcohol logged",skippedAzelaic:"Azelaic skipped"}).filter(([k])=>tc[k]).map(([,v])=>v);
+    return{matches,total:flareDates.length,factors};
+  },[dailyLogs,phase,cycleStart,cycleLength]);
 
   return(
     <div style={{display:"flex",flexDirection:"column",gap:22}}>
@@ -493,6 +521,45 @@ function Dashboard({dailyLogs,cycleStart,cycleLength,beautyLogs,intervals,allHab
         </div>
       )}
 
+      {/* Quick-log widget */}
+      <div style={card}>
+        <SHead right={<span style={{fontSize:11,color:C.faint}}>auto-saves · full entry in Daily Log</span>}>Quick Log — Today</SHead>
+        <div style={{display:"grid",gridTemplateColumns:"1fr 1fr 1fr",gap:20}}>
+          {[{f:"mood",l:"Mood",c:C.accent,e:"🌙"},{f:"energy",l:"Energy",c:C.sage,e:"✨"},{f:"skinRating",l:"Skin",c:C.gold,e:"💧"}].map(({f,l,c,e})=>(
+            <div key={f}>
+              <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:7}}>
+                <span style={lbl}>{e} {l}</span>
+                <span style={{...serif,fontSize:22,color:c,lineHeight:1}}>{today[f]||5}<span style={{fontSize:10,color:C.muted}}>/10</span></span>
+              </div>
+              <input type="range" min={1} max={10} value={today[f]||5} onChange={ev=>quickUpd(f,+ev.target.value)} />
+            </div>
+          ))}
+        </div>
+      </div>
+
+      {/* Vyvanse timing alert */}
+      {vyvanseAlert&&(
+        <div style={{borderRadius:10,padding:"13px 18px",background:C.danger+"12",border:`1px solid ${C.danger}44`,display:"flex",gap:12,alignItems:"flex-start"}}>
+          <span style={{fontSize:18,flexShrink:0}}>⚠️</span>
+          <div>
+            <div style={{fontSize:13,fontWeight:600,color:C.danger,marginBottom:3}}>Vyvanse taken after 9am — Luteal Phase</div>
+            <div style={{fontSize:12,color:C.muted,lineHeight:1.5}}>Heightened stimulant sensitivity this phase. Sleep disruption risk tonight — magnesium bath, strict 10pm screen cutoff, no caffeine after noon.</div>
+          </div>
+        </div>
+      )}
+
+      {/* Flare predictor */}
+      {flareRisk&&(
+        <div style={{borderRadius:10,padding:"13px 18px",background:C.accent+"10",border:`1px solid ${C.accent}44`,display:"flex",gap:12,alignItems:"flex-start"}}>
+          <span style={{fontSize:18,flexShrink:0}}>🔮</span>
+          <div style={{flex:1}}>
+            <div style={{fontSize:13,fontWeight:600,color:C.accent,marginBottom:3}}>Conditions match {flareRisk.matches} of your past flare day{flareRisk.matches!==1?"s":""}</div>
+            <div style={{fontSize:12,color:C.muted,lineHeight:1.5,marginBottom:6}}>Today's pattern looks similar to previous flare days. Consider extra moisturizer and skipping actives tonight.</div>
+            <div style={{display:"flex",flexWrap:"wrap",gap:4}}>{flareRisk.factors.map(f=><span key={f} style={{fontSize:10,padding:"2px 8px",borderRadius:8,background:C.accent+"18",color:C.accent}}>{f}</span>)}</div>
+          </div>
+        </div>
+      )}
+
       {/* Upcoming beauty */}
       {upcoming.length>0&&(
         <div style={card}>
@@ -525,6 +592,14 @@ function Dashboard({dailyLogs,cycleStart,cycleLength,beautyLogs,intervals,allHab
             ))}
             {(today.spendItems||[]).length>0&&<div style={{textAlign:"center"}}><div style={{...serif,fontSize:32,color:C.sage,lineHeight:1}}>${(today.spendItems||[]).filter(i=>!i.returnLikely).reduce((s,i)=>s+i.amount,0).toFixed(0)}</div><div style={{...lbl,marginTop:3,marginBottom:0}}>Spent</div></div>}
           </div>
+        </div>
+      )}
+
+      {/* Pinned note */}
+      {today.pinnedNote&&(
+        <div style={{...card,padding:"12px 18px",borderLeft:`3px solid ${C.gold}`,display:"flex",gap:10,alignItems:"flex-start"}}>
+          <span style={{fontSize:14,flexShrink:0}}>📌</span>
+          <div><div style={{...lbl,marginBottom:3}}>Today's note</div><div style={{fontSize:13,color:C.text}}>{today.pinnedNote}</div></div>
         </div>
       )}
 
@@ -563,6 +638,7 @@ function DailyLog({logs,setLogs,allHabits,cycleStart,cycleLength}){
   const [syncing,setSyncing]=useState(false);
   const [syncMsg,setSyncMsg]=useState("");
   const [syncOk,setSyncOk]=useState(null);
+  const [prefillMsg,setPrefillMsg]=useState("");
   const log=logs[date]||{};
   const upd=(f,v)=>setLogs({...logs,[date]:{...(logs[date]||{}),[f]:v}});
   const updArr=(f,item,checked)=>{const list=log[f]||[];upd(f,checked?[...list,item]:list.filter(x=>x!==item));};
@@ -571,16 +647,64 @@ function DailyLog({logs,setLogs,allHabits,cycleStart,cycleLength}){
   const sl=sleepDuration(log.bedtime,log.wakeTime);
   const handleSync=async()=>{setSyncing(true);setSyncMsg("");const r=await syncToSheets(log,date,sheetsUrl,cycleStart,cycleLength);setSyncing(false);setSyncOk(r.ok);setSyncMsg(r.msg);setTimeout(()=>setSyncMsg(""),5000);};
 
+  // Pre-fill from yesterday: copy meds, supplements, skincare
+  const prefillFromYesterday=()=>{
+    const yd=new Date(date+"T12:00:00");yd.setDate(yd.getDate()-1);
+    const yStr=yd.toISOString().split("T")[0];
+    const y=logs[yStr]||{};
+    const patch={};
+    if(y.skincare)patch.skincare=y.skincare;
+    if(y.meds)patch.meds=y.meds;
+    if(y.sleepSupps)patch.sleepSupps=y.sleepSupps;
+    if(!Object.keys(patch).length){setPrefillMsg("Nothing to copy from "+yStr);setTimeout(()=>setPrefillMsg(""),3000);return;}
+    setLogs({...logs,[date]:{...(logs[date]||{}),...patch}});
+    setPrefillMsg("Copied from "+yStr+" ✓");setTimeout(()=>setPrefillMsg(""),3000);
+  };
+
+  // PDF export: open print-friendly page in new tab
+  const exportPDF=()=>{
+    const ph=getCyclePhase(cycleStart,cycleLength);
+    const phLabel=ph?PHASES[ph.phase].label+" Phase · Day "+ph.day:"";
+    const sl2=sleepDuration(log.bedtime,log.wakeTime);
+    const fmtT=id=>(log.timedMeds?.[id]||[]).map(d=>fmt12(d.time)).join(", ");
+    const pill=t=>`<span style="display:inline-block;padding:2px 9px;border-radius:12px;font-size:11px;background:#f0ede8;margin:2px">${t}</span>`;
+    const section=(title,content)=>`<h2>${title}</h2>${content}`;
+    const row=(l,v)=>`<div style="display:flex;gap:12px;margin-bottom:5px"><span style="font-size:10px;text-transform:uppercase;letter-spacing:.08em;color:#888;width:90px;flex-shrink:0;padding-top:2px">${l}</span><span>${v}</span></div>`;
+    const stat=(v,l,c="#1a1714")=>`<div style="text-align:center;padding:8px 12px"><div style="font-family:'Cormorant Garamond',serif;font-size:30px;font-weight:300;color:${c};line-height:1">${v}</div><div style="font-size:10px;text-transform:uppercase;letter-spacing:.1em;color:#888;margin-top:3px">${l}</div></div>`;
+    let body="";
+    if(log.mood||log.energy||log.anxiety||log.anger||log.skinRating){
+      const stats=[log.mood&&stat(log.mood,"Mood","#C4856A"),log.energy&&stat(log.energy,"Energy","#7A9B8A"),log.anxiety&&stat(log.anxiety,"Anxiety","#C9A96E"),log.anger&&stat(log.anger,"Irritability","#D97070"),log.sleepQuality&&stat(log.sleepQuality,"Sleep Quality","#8A9BAA"),log.skinRating&&stat(log.skinRating,"Skin","#C9A96E")].filter(Boolean);
+      body+=section("Mind & Body",`<div style="display:flex;flex-wrap:wrap;gap:4;margin-bottom:10px">${stats.join("")}</div>${log.notes?`<div style="font-size:12px;color:#555;font-style:italic;margin-top:6px">"${log.notes}"</div>`:""}`);
+    }
+    if(sl2||log.ouraSleep){body+=section("Sleep",`<div style="display:flex;flex-wrap:wrap;gap:4">${[sl2&&stat(sl2.label,"Duration","#8A9BAA"),log.ouraSleep&&stat(log.ouraSleep,"Sleep Score","#8A9BAA"),log.ouraHrv&&stat(log.ouraHrv,"HRV"),log.ouraReadiness&&stat(log.ouraReadiness,"Readiness"),log.ouraSteps&&stat(parseInt(log.ouraSteps).toLocaleString(),"Steps")].filter(Boolean).join("")}</div>`);}
+    if(log.breakfast||log.lunch||log.dinner||log.snacks){body+=section("Food",[["Breakfast",log.breakfast],["Lunch",log.lunch],["Dinner",log.dinner],["Snacks",log.snacks]].filter(([,v])=>v).map(([l,v])=>row(l,v)).join("")+(log.foodTagsDay?.length?`<div style="margin-top:6px">${(log.foodTagsDay||[]).map(pill).join("")}</div>`:""));}
+    if(Object.keys(log.symptoms||{}).length){body+=section("Symptoms",Object.entries(log.symptoms||{}).map(([s,v])=>pill(s+" ("+v+")")).join(""));}
+    const medLines=TIMED_MEDS.filter(m=>(log.timedMeds||{})[m.id]?.length).map(m=>row(m.label,fmtT(m.id))).join("");
+    const suppLine=(log.meds||[]).length?`<div style="margin-top:6px">${(log.meds||[]).map(pill).join("")}</div>`:"";
+    if(medLines||suppLine){body+=section("Medications & Supplements",medLines+suppLine);}
+    const amLine=((log.skincare||{}).AM||[]).map(pill).join("");
+    const pmLine=((log.skincare||{}).PM||[]).map(pill).join("");
+    if(amLine||pmLine){body+=section("Skincare",`<div style="display:grid;grid-template-columns:1fr 1fr;gap:16px"><div><div style="font-size:10px;text-transform:uppercase;letter-spacing:.1em;color:#888;margin-bottom:6px">AM</div>${amLine}</div><div><div style="font-size:10px;text-transform:uppercase;letter-spacing:.1em;color:#888;margin-bottom:6px">PM</div>${pmLine}</div></div>${log.skinNotes?`<div style="font-size:12px;color:#555;font-style:italic;margin-top:8px">"${log.skinNotes}"</div>`:""}`);}
+    if((log.spendItems||[]).length){const total=(log.spendItems||[]).reduce((s,i)=>s+i.amount,0);body+=section("Spend",(log.spendItems||[]).map(i=>`<div style="display:flex;justify-content:space-between;padding:4px 0;border-bottom:1px solid #eee"><span style="font-size:11px;color:#888">${i.category}${i.note?" · "+i.note:""}</span><span>$${i.amount.toFixed(2)}</span></div>`).join("")+`<div style="font-weight:500;margin-top:6px">Total: $${total.toFixed(2)}</div>`);}
+    const html=`<!DOCTYPE html><html><head><meta charset="UTF-8"/><title>Daily Log — ${date}</title><link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:wght@300;400;500&family=DM+Sans:wght@300;400;500&display=swap" rel="stylesheet"/><style>*{box-sizing:border-box;margin:0;padding:0}body{font-family:'DM Sans',sans-serif;color:#1a1714;background:#fff;padding:32px 40px;max-width:780px;margin:0 auto;font-size:13px;line-height:1.6}h1{font-family:'Cormorant Garamond',serif;font-size:28px;font-weight:300;margin-bottom:4px}h2{font-family:'Cormorant Garamond',serif;font-size:15px;font-weight:400;color:#666;margin:22px 0 10px;border-bottom:1px solid #eee;padding-bottom:5px}.meta{font-size:12px;color:#888;margin-bottom:24px}.footer{margin-top:36px;padding-top:14px;border-top:1px solid #eee;font-size:11px;color:#bbb}@media print{body{padding:20px}}</style></head><body><h1>Daily Log</h1><div class="meta">${date}${phLabel?" · "+phLabel:""}${log.pinnedNote?" · 📌 "+log.pinnedNote:""}</div>${body}<div class="footer">Nicole OS · Exported ${new Date().toLocaleString()}</div><script>window.print();<\/script></body></html>`;
+    const w=window.open("","_blank");w.document.write(html);w.document.close();
+  };
+
   // Cycle context for today
   const phase=getCyclePhase(cycleStart,cycleLength);
   const pd=phase?PHASES[phase.phase]:null;
 
   return(
     <div style={{display:"flex",flexDirection:"column",gap:18}}>
-      <div style={{display:"flex",justifyContent:"space-between",alignItems:"center"}}>
+      <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",flexWrap:"wrap",gap:10}}>
         <PTitle>Daily Log</PTitle>
-        <input type="date" value={date} onChange={e=>setDate(e.target.value)} style={{...inp,width:"auto"}} />
+        <div style={{display:"flex",gap:7,alignItems:"center",flexWrap:"wrap"}}>
+          <button onClick={prefillFromYesterday} style={{padding:"7px 13px",borderRadius:8,cursor:"pointer",fontSize:11,fontWeight:500,background:"transparent",border:`1px solid ${C.border}`,color:C.muted,whiteSpace:"nowrap"}}>↩ Copy yesterday</button>
+          <button onClick={exportPDF} style={{padding:"7px 13px",borderRadius:8,cursor:"pointer",fontSize:11,fontWeight:500,background:"transparent",border:`1px solid ${C.border}`,color:C.muted,whiteSpace:"nowrap"}}>⬇ Export PDF</button>
+          <input type="date" value={date} onChange={e=>setDate(e.target.value)} style={{...inp,width:"auto"}} />
+        </div>
       </div>
+      {prefillMsg&&<div style={{fontSize:12,color:C.sage,padding:"6px 14px",background:C.sage+"12",borderRadius:8}}>{prefillMsg}</div>}
 
       {/* Cycle mini-banner */}
       {pd&&cycleStart&&(
@@ -714,6 +838,13 @@ function DailyLog({logs,setLogs,allHabits,cycleStart,cycleLength}){
         <div><label style={lbl}>Skin Notes</label><textarea rows={2} value={log.skinNotes||""} onChange={e=>upd("skinNotes",e.target.value)} placeholder="Redness, texture, breakouts..." style={inp} /></div>
       </div>
 
+      {/* Pin a note */}
+      <div style={{...card,borderLeft:`3px solid ${C.gold}`}}>
+        <SHead>📌 Pin a Note</SHead>
+        <input value={log.pinnedNote||""} onChange={e=>upd("pinnedNote",e.target.value)} placeholder="Started new moisturizer · Unusual reaction · Something to flag for your doctor..." style={inp} />
+        <div style={{fontSize:11,color:C.faint,marginTop:6}}>Appears on Dashboard. Use for context that doesn't fit a symptom — new products, observations, triggers.</div>
+      </div>
+
       {/* Spend */}
       <div style={card}>
         <SHead>Daily Spend</SHead>
@@ -738,7 +869,7 @@ function DailyLog({logs,setLogs,allHabits,cycleStart,cycleLength}){
 // ═══════════════════════════════════════════════════════════════════════════════
 // SKIN + GALLERY
 // ═══════════════════════════════════════════════════════════════════════════════
-function SkinTab({logs,setLogs}){
+function SkinTab({logs,setLogs,cycleStart,cycleLength}){
   const [date,setDate]=useState(todayStr());
   const [compareA,setCompareA]=useState("");
   const [compareB,setCompareB]=useState("");
@@ -749,6 +880,28 @@ function SkinTab({logs,setLogs}){
   const upd=(f,v)=>setLogs({...logs,[date]:{...(logs[date]||{}),[f]:v}});
   const fileRef=useRef();
   const concerns=["Rosacea flare","Breakout","Dryness","Oiliness","Sensitivity","Texture","Dullness","Redness","Puffiness","Good skin day"];
+
+  // Cycle-phase diff: find photo from same cycle day ~1 cycle ago
+  const cyclePhaseMatch=useMemo(()=>{
+    if(!cycleStart||!cycleLength)return null;
+    const phase=getCyclePhase(cycleStart,cycleLength);
+    if(!phase)return null;
+    // Target: same cycle day but in the previous cycle (approx cycleLength days ago)
+    const prevCycleOffset=cycleLength;
+    const prevDate=new Date(todayStr()+"T12:00:00");
+    prevDate.setDate(prevDate.getDate()-prevCycleOffset);
+    // Search ±4 days around that date for a photo
+    for(let offset=-4;offset<=4;offset++){
+      const d=new Date(prevDate);d.setDate(d.getDate()+offset);
+      const k=d.toISOString().split("T")[0];
+      if(logs[k]?.skinPhoto){
+        const el=Math.floor((new Date(k)-new Date(cycleStart))/86400000);
+        const cd=(el%cycleLength)+1;
+        return{date:k,photo:logs[k].skinPhoto,rating:logs[k].skinRating,cycleDay:cd,concerns:logs[k].skinConcerns||[]};
+      }
+    }
+    return null;
+  },[logs,cycleStart,cycleLength]);
 
   const photos=useMemo(()=>
     Object.entries(logs).filter(([,v])=>v&&v.skinPhoto)
@@ -813,6 +966,28 @@ function SkinTab({logs,setLogs}){
           <div style={{display:"flex",alignItems:"flex-end",gap:4,height:70}}>
             {history.map((d,i)=><div key={i} style={{flex:1,display:"flex",flexDirection:"column",alignItems:"center",gap:3}}><div style={{width:"100%",borderRadius:"2px 2px 0 0",minHeight:3,height:((d.rating/10)*58)+"px",background:d.rating>=8?C.sage+"99":d.rating>=5?C.gold+"99":C.accent+"99"}} title={d.k+": "+d.rating+"/10"} /><div style={{fontSize:9,color:C.faint}}>{d.label}</div></div>)}
           </div>
+        </div>
+      )}
+
+      {/* Cycle-phase diff: same cycle day, previous cycle */}
+      {cyclePhaseMatch&&(
+        <div style={card}>
+          <SHead right={<span style={{fontSize:11,color:C.faint}}>same phase · previous cycle</span>}>Cycle Phase Compare</SHead>
+          <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:14}}>
+            <div>
+              <div style={{...lbl,marginBottom:8}}>Today · Day {getCyclePhase(cycleStart,cycleLength)?.day}</div>
+              {log.skinPhoto?<img src={log.skinPhoto} alt="today" style={{width:"100%",aspectRatio:"1",objectFit:"cover",borderRadius:9}} />:<div style={{aspectRatio:"1",background:C.surface,borderRadius:9,display:"flex",alignItems:"center",justifyContent:"center",color:C.faint,fontSize:12}}>No photo today</div>}
+              {log.skinRating&&<div style={{...serif,fontSize:20,color:C.accent,marginTop:6}}>{log.skinRating}<span style={{fontSize:11,color:C.muted}}>/10</span></div>}
+              {(log.skinConcerns||[]).length>0&&<div style={{display:"flex",flexWrap:"wrap",gap:3,marginTop:4}}>{(log.skinConcerns||[]).map(c=><span key={c} style={{fontSize:10,padding:"2px 7px",borderRadius:8,background:C.accent+"18",color:C.accent}}>{c}</span>)}</div>}
+            </div>
+            <div>
+              <div style={{...lbl,marginBottom:8}}>{cyclePhaseMatch.date} · Day {cyclePhaseMatch.cycleDay}</div>
+              <img src={cyclePhaseMatch.photo} alt={cyclePhaseMatch.date} style={{width:"100%",aspectRatio:"1",objectFit:"cover",borderRadius:9}} />
+              {cyclePhaseMatch.rating&&<div style={{...serif,fontSize:20,color:C.accent,marginTop:6}}>{cyclePhaseMatch.rating}<span style={{fontSize:11,color:C.muted}}>/10</span></div>}
+              {cyclePhaseMatch.concerns.length>0&&<div style={{display:"flex",flexWrap:"wrap",gap:3,marginTop:4}}>{cyclePhaseMatch.concerns.map(c=><span key={c} style={{fontSize:10,padding:"2px 7px",borderRadius:8,background:C.accent+"18",color:C.accent}}>{c}</span>)}</div>}
+            </div>
+          </div>
+          <div style={{fontSize:11,color:C.faint,marginTop:10}}>Comparing like-for-like cycle days across months to isolate hormonal skin patterns.</div>
         </div>
       )}
 
@@ -1354,18 +1529,24 @@ function App(){
           <div style={{display:"flex",alignItems:"center",gap:16,height:54}}>
             <div style={{fontFamily:"'Cormorant Garamond', serif",fontSize:16,color:C.accent,letterSpacing:"0.22em",fontStyle:"italic",flexShrink:0}}>nicole</div>
             <div style={{display:"flex",gap:3,overflowX:"auto",paddingBottom:2}}>
-              {TABS.map(t=>(
-                <button key={t.id} onClick={()=>setTab(t.id)} style={{padding:"5px 13px",borderRadius:20,fontSize:11,fontWeight:500,letterSpacing:"0.04em",cursor:"pointer",whiteSpace:"nowrap",border:`1px solid ${tab===t.id?C.accent:C.border}`,background:tab===t.id?C.accent+"18":"transparent",color:tab===t.id?C.accent:C.muted,transition:"all 0.15s"}}>{t.label}</button>
-              ))}
+              {TABS.map(t=>{
+                const noSkinPhoto=t.id==="skin"&&!dailyLogs[todayStr()]?.skinPhoto;
+                return(
+                  <button key={t.id} onClick={()=>setTab(t.id)} style={{padding:"5px 13px",borderRadius:20,fontSize:11,fontWeight:500,letterSpacing:"0.04em",cursor:"pointer",whiteSpace:"nowrap",border:`1px solid ${tab===t.id?C.accent:C.border}`,background:tab===t.id?C.accent+"18":"transparent",color:tab===t.id?C.accent:C.muted,transition:"all 0.15s",position:"relative"}}>
+                    {t.label}
+                    {noSkinPhoto&&<span style={{position:"absolute",top:3,right:3,width:6,height:6,borderRadius:"50%",background:C.accent,display:"block"}} />}
+                  </button>
+                );
+              })}
             </div>
           </div>
         </div>
       </div>
       <div style={{position:"relative",zIndex:1,padding:"26px 20px 80px"}}>
         <div style={{maxWidth:960,margin:"0 auto"}}>
-          {tab==="dashboard"&&<Dashboard dailyLogs={dailyLogs} cycleStart={cycleStart} cycleLength={cycleLength} beautyLogs={beautyLogs} intervals={intervals} allHabits={allHabits} />}
+          {tab==="dashboard"&&<Dashboard dailyLogs={dailyLogs} setDailyLogs={setDailyLogs} cycleStart={cycleStart} cycleLength={cycleLength} beautyLogs={beautyLogs} intervals={intervals} allHabits={allHabits} />}
           {tab==="daily"&&<DailyLog logs={dailyLogs} setLogs={setDailyLogs} allHabits={allHabits} cycleStart={cycleStart} cycleLength={cycleLength} />}
-          {tab==="skin"&&<SkinTab logs={dailyLogs} setLogs={setDailyLogs} />}
+          {tab==="skin"&&<SkinTab logs={dailyLogs} setLogs={setDailyLogs} cycleStart={cycleStart} cycleLength={cycleLength} />}
           {tab==="hair"&&<HairBeautyTab dailyLogs={dailyLogs} beautyLogs={beautyLogs} setBeautyLogs={setBeautyLogs} intervals={intervals} setIntervals={setIntervals} />}
           {tab==="cycle"&&<CycleTab dailyLogs={dailyLogs} />}
           {tab==="habits"&&<HabitsTab logs={dailyLogs} setLogs={setDailyLogs} customHabits={customHabits} setCustomHabits={setCustomHabits} />}
