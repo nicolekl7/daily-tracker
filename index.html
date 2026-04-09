@@ -886,21 +886,25 @@ function SkinTab({logs,setLogs,cycleStart,cycleLength}){
   const fileRefFront=useRef();
   const fileRefRight=useRef();
   const concerns=["Rosacea flare","Breakout","Dryness","Oiliness","Sensitivity","Texture","Dullness","Redness","Puffiness","Good skin day"];
-  const mkPhotoSlot=(field,ref,label)=>(
-    <div style={{borderRadius:12,overflow:"hidden",border:`1px solid ${log[field]?C.border:C.border}`,cursor:"pointer",display:"flex",flexDirection:"column"}} onClick={()=>ref.current.click()}>
-      <input ref={ref} type="file" accept="image/*" onChange={e=>{const f=e.target.files[0];if(!f)return;const r=new FileReader();r.onload=ev=>upd(field,ev.target.result);r.readAsDataURL(f);}} style={{display:"none"}} />
-      <div style={{position:"relative",flex:1}}>
-        {log[field]
-          ?<img src={log[field]} alt={label} style={{width:"100%",aspectRatio:"3/4",objectFit:"cover",display:"block"}} />
-          :<div style={{aspectRatio:"3/4",background:C.surface,display:"flex",flexDirection:"column",alignItems:"center",justifyContent:"center",color:C.faint}}>
-            <div style={{fontSize:22,marginBottom:5}}>📸</div>
-            <div style={{fontSize:10}}>tap to add</div>
-          </div>}
-        {log[field]&&<button onClick={e=>{e.stopPropagation();upd(field,null);}} style={{position:"absolute",top:5,right:5,width:20,height:20,borderRadius:"50%",background:"#00000077",border:"none",color:"#fff",cursor:"pointer",fontSize:12,display:"flex",alignItems:"center",justifyContent:"center",padding:0}}>×</button>}
+  const mkPhotoSlot=(field,ref,label,legacyField=null)=>{
+    const src=log[field]||(legacyField?log[legacyField]:null);
+    const clearField=e=>{e.stopPropagation();if(log[field])upd(field,null);else if(legacyField&&log[legacyField])upd(legacyField,null);};
+    return(
+      <div style={{borderRadius:12,overflow:"hidden",border:`1px solid ${C.border}`,cursor:"pointer",display:"flex",flexDirection:"column"}} onClick={()=>ref.current.click()}>
+        <input ref={ref} type="file" accept="image/*" onChange={e=>{const f=e.target.files[0];if(!f)return;const r=new FileReader();r.onload=ev=>upd(field,ev.target.result);r.readAsDataURL(f);}} style={{display:"none"}} />
+        <div style={{position:"relative",flex:1}}>
+          {src
+            ?<img src={src} alt={label} style={{width:"100%",aspectRatio:"3/4",objectFit:"cover",display:"block"}} />
+            :<div style={{aspectRatio:"3/4",background:C.surface,display:"flex",flexDirection:"column",alignItems:"center",justifyContent:"center",color:C.faint}}>
+              <div style={{fontSize:22,marginBottom:5}}>📸</div>
+              <div style={{fontSize:10}}>tap to add</div>
+            </div>}
+          {src&&<button onClick={clearField} style={{position:"absolute",top:5,right:5,width:20,height:20,borderRadius:"50%",background:"#00000077",border:"none",color:"#fff",cursor:"pointer",fontSize:12,display:"flex",alignItems:"center",justifyContent:"center",padding:0}}>×</button>}
+        </div>
+        <div style={{padding:"5px 0",fontSize:10,color:src?C.muted:C.faint,textAlign:"center",background:C.card,borderTop:`1px solid ${C.border}`}}>{label}</div>
       </div>
-      <div style={{padding:"5px 0",fontSize:10,color:log[field]?C.muted:C.faint,textAlign:"center",background:C.card,borderTop:`1px solid ${C.border}`}}>{label}</div>
-    </div>
-  );
+    );
+  };
 
   // Cycle-phase diff: find photo from same cycle day ~1 cycle ago
   const cyclePhaseMatch=useMemo(()=>{
@@ -957,7 +961,7 @@ function SkinTab({logs,setLogs,cycleStart,cycleLength}){
       {/* Photos — left / front / right */}
       <div style={{display:"grid",gridTemplateColumns:"1fr 1fr 1fr",gap:10}}>
         {mkPhotoSlot("skinPhotoLeft",fileRefLeft,"← Left")}
-        {mkPhotoSlot("skinPhotoFront",fileRefFront,"Front")}
+        {mkPhotoSlot("skinPhotoFront",fileRefFront,"Front","skinPhoto")}
         {mkPhotoSlot("skinPhotoRight",fileRefRight,"Right →")}
       </div>
 
