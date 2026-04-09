@@ -72,6 +72,17 @@ function weekStart(ds) {
   d.setDate(d.getDate()+diff); return d.toISOString().split("T")[0];
 }
 
+// ─── CLOUDINARY UPLOAD ───────────────────────────────────────────────────────
+async function uploadToCloudinary(file, cloudName, preset) {
+  const fd=new FormData();
+  fd.append("file",file);
+  fd.append("upload_preset",preset);
+  const res=await fetch(`https://api.cloudinary.com/v1_1/${encodeURIComponent(cloudName)}/image/upload`,{method:"POST",body:fd});
+  const data=await res.json();
+  if(!res.ok)throw new Error(data?.error?.message||"Upload failed ("+res.status+")");
+  return data.secure_url;
+}
+
 // ─── GOOGLE SHEETS SYNC ──────────────────────────────────────────────────────
 async function syncToSheets(log, date, sheetsUrl, cycleStart, cycleLength) {
   if(!sheetsUrl) return { ok:false, msg:"Paste your Apps Script URL first" };
@@ -873,6 +884,25 @@ function DailyLog({logs,setLogs,allHabits,cycleStart,cycleLength}){
 // ═══════════════════════════════════════════════════════════════════════════════
 // SKIN + GALLERY
 // ═══════════════════════════════════════════════════════════════════════════════
+// Compress image to max 900px / JPEG 72% before storing
+function compressImage(file){
+  return new Promise(res=>{
+    const fr=new FileReader();
+    fr.onload=e=>{
+      const img=new Image();
+      img.onload=()=>{
+        const MAX=900;let w=img.width,h=img.height;
+        if(w>MAX||h>MAX){if(w>h){h=Math.round(h*MAX/w);w=MAX;}else{w=Math.round(w*MAX/h);h=MAX;}}
+        const cv=document.createElement("canvas");cv.width=w;cv.height=h;
+        cv.getContext("2d").drawImage(img,0,0,w,h);
+        res(cv.toDataURL("image/jpeg",0.72));
+      };
+      img.src=e.target.result;
+    };
+    fr.readAsDataURL(file);
+  });
+}
+
 function SkinTab({logs,setLogs,cycleStart,cycleLength}){
   const [date,setDate]=useState(todayStr());
   const [compareA,setCompareA]=useState("");
@@ -880,27 +910,58 @@ function SkinTab({logs,setLogs,cycleStart,cycleLength}){
   const [compareMode,setCompareMode]=useState(false);
   const [expanded,setExpanded]=useState(null);
   const [openMonths,setOpenMonths]=useState({});
+  const [photoError,setPhotoError]=useState("");
+  const [uploading,setUploading]=useState(null);
+  const [skinSubmitted,setSkinSubmitted]=useState(false);
   const log=logs[date]||{};
   const upd=(f,v)=>setLogs({...logs,[date]:{...(logs[date]||{}),[f]:v}});
   const fileRefLeft=useRef();
   const fileRefFront=useRef();
   const fileRefRight=useRef();
   const concerns=["Rosacea flare","Breakout","Dryness","Oiliness","Sensitivity","Texture","Dullness","Redness","Puffiness","Good skin day"];
-  const mkPhotoSlot=(field,ref,label)=>(
-    <div style={{borderRadius:12,overflow:"hidden",border:`1px solid ${log[field]?C.border:C.border}`,cursor:"pointer",display:"flex",flexDirection:"column"}} onClick={()=>ref.current.click()}>
-      <input ref={ref} type="file" accept="image/*" onChange={e=>{const f=e.target.files[0];if(!f)return;const r=new FileReader();r.onload=ev=>upd(field,ev.target.result);r.readAsDataURL(f);}} style={{display:"none"}} />
-      <div style={{position:"relative",flex:1}}>
-        {log[field]
-          ?<img src={log[field]} alt={label} style={{width:"100%",aspectRatio:"3/4",objectFit:"cover",display:"block"}} />
-          :<div style={{aspectRatio:"3/4",background:C.surface,display:"flex",flexDirection:"column",alignItems:"center",justifyContent:"center",color:C.faint}}>
-            <div style={{fontSize:22,marginBottom:5}}>📸</div>
-            <div style={{fontSize:10}}>tap to add</div>
-          </div>}
-        {log[field]&&<button onClick={e=>{e.stopPropagation();upd(field,null);}} style={{position:"absolute",top:5,right:5,width:20,height:20,borderRadius:"50%",background:"#00000077",border:"none",color:"#fff",cursor:"pointer",fontSize:12,display:"flex",alignItems:"center",justifyContent:"center",padding:0}}>×</button>}
+  const getLS2=k=>{try{const v=localStorage.getItem(k);return v?JSON.parse(v):"";}catch{return "";}};
+  const handlePhotoUpload=async(field,file)=>{
+    setPhotoError("");setUploading(field);
+    const cloudName=(getLS2("nm_cloudinary_name")||"dx9jqeqxj").trim();
+    const cloudPreset=(getLS2("nm_cloudinary_preset")||"Daily Tracker").trim();
+    try{
+      if(cloudName&&cloudPreset){
+        const url=await uploadToCloudinary(file,cloudName,cloudPreset);
+        upd(field,url);
+      }else{
+        const compressed=await compressImage(file);
+        try{localStorage.setItem("__sztest__",compressed);localStorage.removeItem("__sztest__");}
+        catch{setPhotoError("Storage full — set up Cloudinary in ⊙ Sync for cloud storage, or export a backup to free space.");setUploading(null);return;}
+        upd(field,compressed);
+      }
+    }catch(err){setPhotoError("Upload failed: "+(err.message||"check Cloudinary settings in ⊙ Sync"));}
+    setUploading(null);
+  };
+  const mkPhotoSlot=(field,ref,label,legacyField=null)=>{
+    const src=log[field]||(legacyField?log[legacyField]:null);
+    const clearField=e=>{e.stopPropagation();if(log[field])upd(field,null);else if(legacyField&&log[legacyField])upd(legacyField,null);};
+    return(
+      <div style={{borderRadius:12,overflow:"hidden",border:`1px solid ${C.border}`,cursor:"pointer",display:"flex",flexDirection:"column"}} onClick={()=>ref.current.click()}>
+        <input ref={ref} type="file" accept="image/*" onChange={e=>{const f=e.target.files[0];if(f)handlePhotoUpload(field,f);}} style={{display:"none"}} />
+        <div style={{position:"relative",flex:1}}>
+          {uploading===field
+            ?<div style={{aspectRatio:"3/4",background:C.surface,display:"flex",flexDirection:"column",alignItems:"center",justifyContent:"center",color:C.muted}}>
+                <div style={{fontSize:20,marginBottom:6}}>☁</div>
+                <div style={{fontSize:10}}>Uploading...</div>
+              </div>
+            :src
+              ?<img src={src} alt={label} style={{width:"100%",aspectRatio:"3/4",objectFit:"cover",display:"block"}} />
+              :<div style={{aspectRatio:"3/4",background:C.surface,display:"flex",flexDirection:"column",alignItems:"center",justifyContent:"center",color:C.faint}}>
+                <div style={{fontSize:22,marginBottom:5}}>📸</div>
+                <div style={{fontSize:10}}>tap to add</div>
+              </div>}
+          {src&&uploading!==field&&<button onClick={clearField} style={{position:"absolute",top:5,right:5,width:20,height:20,borderRadius:"50%",background:"#00000077",border:"none",color:"#fff",cursor:"pointer",fontSize:12,display:"flex",alignItems:"center",justifyContent:"center",padding:0}}>×</button>}
+          {src&&src.startsWith("http")&&<div style={{position:"absolute",bottom:5,left:5,fontSize:9,color:"#ffffffaa",background:"#00000055",borderRadius:4,padding:"2px 5px"}}>☁</div>}
+        </div>
+        <div style={{padding:"5px 0",fontSize:10,color:src?C.muted:C.faint,textAlign:"center",background:C.card,borderTop:`1px solid ${C.border}`}}>{label}</div>
       </div>
-      <div style={{padding:"5px 0",fontSize:10,color:log[field]?C.muted:C.faint,textAlign:"center",background:C.card,borderTop:`1px solid ${C.border}`}}>{label}</div>
-    </div>
-  );
+    );
+  };
 
   // Cycle-phase diff: find photo from same cycle day ~1 cycle ago
   const cyclePhaseMatch=useMemo(()=>{
@@ -954,12 +1015,35 @@ function SkinTab({logs,setLogs,cycleStart,cycleLength}){
         </div>
       </div>
 
+      {/* Date warning */}
+      {date!==todayStr()&&(
+        <div style={{padding:"9px 14px",background:C.gold+"15",border:`1px solid ${C.gold}33`,borderRadius:8,fontSize:12,color:C.gold,display:"flex",justifyContent:"space-between",alignItems:"center"}}>
+          <span>Viewing <strong>{date}</strong> — photos you upload here will save to this date, not today.</span>
+          <button onClick={()=>setDate(todayStr())} style={{background:"none",border:`1px solid ${C.gold}55`,borderRadius:6,color:C.gold,cursor:"pointer",fontSize:11,padding:"3px 9px",flexShrink:0,marginLeft:10}}>Go to today</button>
+        </div>
+      )}
+
+      {/* Storage / upload error */}
+      {photoError&&(
+        <div style={{padding:"9px 14px",background:C.danger+"12",border:`1px solid ${C.danger}33`,borderRadius:8,fontSize:12,color:C.danger}}>{photoError}</div>
+      )}
+
       {/* Photos — left / front / right */}
       <div style={{display:"grid",gridTemplateColumns:"1fr 1fr 1fr",gap:10}}>
         {mkPhotoSlot("skinPhotoLeft",fileRefLeft,"← Left")}
-        {mkPhotoSlot("skinPhotoFront",fileRefFront,"Front")}
+        {mkPhotoSlot("skinPhotoFront",fileRefFront,"Front","skinPhoto")}
         {mkPhotoSlot("skinPhotoRight",fileRefRight,"Right →")}
       </div>
+      {(log.skinPhotoLeft||log.skinPhotoFront||log.skinPhoto||log.skinPhotoRight)&&(
+        <button
+          onClick={()=>{setSkinSubmitted(true);setTimeout(()=>setSkinSubmitted(false),3000);}}
+          style={{width:"100%",padding:"11px",borderRadius:9,cursor:"pointer",fontSize:13,fontWeight:500,transition:"all 0.2s",
+            background:skinSubmitted?C.sage+"22":"transparent",
+            border:`1px solid ${skinSubmitted?C.sage:C.border}`,
+            color:skinSubmitted?C.sage:C.muted}}>
+          {skinSubmitted?"Skin logged ✓  "+date:"Save skin entry"}
+        </button>
+      )}
 
       {/* Rating + observations */}
       <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:14}}>
@@ -1530,6 +1614,117 @@ function WeddingTab(){
 }
 
 // ═══════════════════════════════════════════════════════════════════════════════
+// DATA PANEL (export / import / sync explanation)
+// ═══════════════════════════════════════════════════════════════════════════════
+function DataPanel({onClose}){
+  const [msg,setMsg]=useState("");
+  const [_cloudName,setCloudName]=useLS("nm_cloudinary_name","dx9jqeqxj");
+  const cloudName=_cloudName||"dx9jqeqxj";
+  const [cloudPreset,setCloudPreset]=useLS("nm_cloudinary_preset","Daily Tracker");
+  const [testMsg,setTestMsg]=useState("");
+  const [testing,setTesting]=useState(false);
+
+  const testCloudinary=async()=>{
+    if(!cloudName.trim()||!cloudPreset.trim()){setTestMsg("Enter cloud name and preset first");setTimeout(()=>setTestMsg(""),3000);return;}
+    setTesting(true);setTestMsg("");
+    try{
+      // Upload a 1×1 transparent PNG to verify credentials
+      const fd=new FormData();
+      fd.append("file","data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAAC0lEQVQI12NgAAIABQAABjE+ibYAAAAASUVORK5CYII=");
+      fd.append("upload_preset",cloudPreset.trim());
+      const res=await fetch(`https://api.cloudinary.com/v1_1/${encodeURIComponent(cloudName.trim())}/image/upload`,{method:"POST",body:fd});
+      const d=await res.json();
+      if(res.ok){setTestMsg("Connected ✓ — photos will upload to Cloudinary");}
+      else{setTestMsg("Error: "+(d?.error?.message||res.status));}
+    }catch{setTestMsg("Connection failed — check your cloud name");}
+    setTesting(false);setTimeout(()=>setTestMsg(""),6000);
+  };
+
+  const exportAll=()=>{
+    const keys=Object.keys(localStorage).filter(k=>k.startsWith("nm_"));
+    const out={};
+    keys.forEach(k=>{try{out[k]=JSON.parse(localStorage.getItem(k));}catch{out[k]=localStorage.getItem(k);}});
+    const blob=new Blob([JSON.stringify(out,null,2)],{type:"application/json"});
+    const url=URL.createObjectURL(blob);
+    const a=document.createElement("a");a.href=url;a.download="nicole-os-"+new Date().toISOString().slice(0,10)+".json";a.click();URL.revokeObjectURL(url);
+    setMsg("Exported ✓");setTimeout(()=>setMsg(""),3000);
+  };
+  const importFile=e=>{
+    const f=e.target.files[0];if(!f)return;
+    const r=new FileReader();
+    r.onload=ev=>{
+      try{
+        const data=JSON.parse(ev.target.result);
+        if(data.nm_daily){
+          const existing=JSON.parse(localStorage.getItem("nm_daily")||"{}");
+          const merged={...data.nm_daily};
+          Object.entries(existing).forEach(([d,v])=>{
+            if(!merged[d])merged[d]=v;
+            else merged[d]={...merged[d],...Object.fromEntries(Object.entries(v).filter(([,val])=>val!=null&&val!==""))};
+          });
+          data.nm_daily=merged;
+        }
+        Object.entries(data).forEach(([k,v])=>localStorage.setItem(k,JSON.stringify(v)));
+        setMsg("Imported ✓ — reloading...");
+        setTimeout(()=>window.location.reload(),1200);
+      }catch{setMsg("Invalid file — check format");}
+    };
+    r.readAsText(f);
+  };
+  return(
+    <Modal onClose={onClose}>
+      <div style={{...card,maxWidth:440}}>
+        <div style={{...serif,fontSize:22,color:C.white,marginBottom:5}}>Data & Sync</div>
+        {/* Cloudinary photo sync */}
+        <div style={{marginBottom:20,padding:"14px 16px",background:C.surface,borderRadius:10,border:`1px solid ${cloudName?C.sage+"44":C.border}`}}>
+          <div style={{display:"flex",alignItems:"center",gap:8,marginBottom:10}}>
+            <div style={{fontSize:13,fontWeight:500,color:C.white}}>☁ Cloudinary Photo Storage</div>
+            {cloudName&&<span style={{fontSize:10,padding:"2px 7px",borderRadius:8,background:C.sage+"22",color:C.sage}}>connected</span>}
+          </div>
+          <div style={{fontSize:11,color:C.muted,marginBottom:12,lineHeight:1.6}}>Photos upload to Cloudinary instead of being stored in the browser. Works from any device automatically — no export needed for photos.</div>
+          <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:8,marginBottom:8}}>
+            <div>
+              <div style={lbl}>Cloud Name</div>
+              <input value={cloudName} onChange={e=>setCloudName(e.target.value.trim())} placeholder="e.g. dxyz12abc" style={inp} />
+            </div>
+            <div>
+              <div style={lbl}>Upload Preset</div>
+              <input value={cloudPreset} onChange={e=>setCloudPreset(e.target.value)} placeholder="Daily Tracker" style={inp} />
+            </div>
+          </div>
+          <div style={{display:"flex",alignItems:"center",gap:10}}>
+            <button onClick={testCloudinary} disabled={testing} style={{padding:"7px 14px",borderRadius:7,background:C.sage+"22",border:`1px solid ${C.sage}44`,color:C.sage,cursor:"pointer",fontSize:12,fontWeight:500}}>{testing?"Testing...":"Test connection"}</button>
+            {testMsg&&<span style={{fontSize:11,color:testMsg.includes("✓")?C.sage:C.danger}}>{testMsg}</span>}
+          </div>
+        </div>
+
+        <div style={{fontSize:12,color:C.muted,lineHeight:1.7,marginBottom:16}}>
+          All other data (logs, habits, spend) is saved <strong style={{color:C.text}}>in this browser only</strong>. Use export/import below to move it between devices.
+        </div>
+        <div style={{display:"flex",flexDirection:"column",gap:10,marginBottom:16}}>
+          <button onClick={exportAll} style={{padding:"12px 16px",borderRadius:9,background:C.sage+"18",border:`1px solid ${C.sage}44`,color:C.sage,cursor:"pointer",fontSize:13,fontWeight:500,textAlign:"left",display:"flex",justifyContent:"space-between",alignItems:"center"}}>
+            <span>↓ Export backup</span>
+            <span style={{fontSize:11,color:C.muted}}>downloads a .json with all your data + photos</span>
+          </button>
+          <label style={{padding:"12px 16px",borderRadius:9,background:C.accent+"12",border:`1px solid ${C.accent}33`,color:C.accent,cursor:"pointer",fontSize:13,fontWeight:500,display:"flex",justifyContent:"space-between",alignItems:"center"}}>
+            <span>↑ Import backup</span>
+            <span style={{fontSize:11,color:C.muted}}>merges a .json — nothing is deleted</span>
+            <input type="file" accept=".json" onChange={importFile} style={{display:"none"}} />
+          </label>
+        </div>
+        {msg&&<div style={{fontSize:12,color:C.sage,padding:"8px 12px",background:C.sage+"12",borderRadius:7,marginBottom:12}}>{msg}</div>}
+        <div style={{fontSize:11,color:C.faint,lineHeight:1.6,padding:"11px 14px",background:C.surface,borderRadius:8}}>
+          <strong style={{color:C.muted}}>How to sync phone → desktop</strong><br/>
+          1. Open app on phone → ⊙ Sync → Export backup<br/>
+          2. AirDrop or email the .json file to your computer<br/>
+          3. Open app on desktop → ⊙ Sync → Import backup
+        </div>
+      </div>
+    </Modal>
+  );
+}
+
+// ═══════════════════════════════════════════════════════════════════════════════
 // APP
 // ═══════════════════════════════════════════════════════════════════════════════
 const TABS=[
@@ -1552,15 +1747,24 @@ function App(){
   const [intervals,setIntervals]=useLS("nm_beauty_intervals",{});
   const [customHabits,setCustomHabits]=useLS("nm_custom_habits",[]);
   const allHabits=[...DEFAULT_HABITS,...customHabits];
+  const [showData,setShowData]=useState(false);
+  const [showSaved,setShowSaved]=useState(false);
+  const savedSkip=useRef(true);
+  useEffect(()=>{
+    if(savedSkip.current){savedSkip.current=false;return;}
+    setShowSaved(true);
+    const t=setTimeout(()=>setShowSaved(false),2000);
+    return()=>clearTimeout(t);
+  },[dailyLogs]);
 
   return(
     <div style={{fontFamily:"'DM Sans', sans-serif",background:C.bg,minHeight:"100vh",color:C.text}}>
       <div style={{position:"fixed",inset:0,background:"radial-gradient(ellipse at 15% 40%,#C4856A05 0%,transparent 55%),radial-gradient(ellipse at 85% 20%,#7A9B8A04 0%,transparent 50%)",pointerEvents:"none",zIndex:0}} />
       <div style={{position:"sticky",top:0,zIndex:100,background:C.bg+"F4",backdropFilter:"blur(16px)",borderBottom:`1px solid ${C.border}`}}>
         <div style={{maxWidth:960,margin:"0 auto",padding:"0 20px"}}>
-          <div style={{display:"flex",alignItems:"center",gap:16,height:54}}>
+          <div style={{display:"flex",alignItems:"center",gap:12,height:54}}>
             <div style={{fontFamily:"'Cormorant Garamond', serif",fontSize:16,color:C.accent,letterSpacing:"0.22em",fontStyle:"italic",flexShrink:0}}>nicole</div>
-            <div style={{display:"flex",gap:3,overflowX:"auto",paddingBottom:2}}>
+            <div style={{display:"flex",gap:3,overflowX:"auto",paddingBottom:2,flex:1}}>
               {TABS.map(t=>{
                 const tl=dailyLogs[todayStr()];const noSkinPhoto=t.id==="skin"&&!(tl?.skinPhoto||tl?.skinPhotoFront||tl?.skinPhotoLeft||tl?.skinPhotoRight);
                 return(
@@ -1571,9 +1775,14 @@ function App(){
                 );
               })}
             </div>
+            <div style={{display:"flex",alignItems:"center",gap:8,flexShrink:0}}>
+              <span style={{fontSize:11,color:C.sage,transition:"opacity 0.4s",opacity:showSaved?1:0,pointerEvents:"none"}}>✓ saved</span>
+              <button onClick={()=>setShowData(true)} title="Data sync &amp; export" style={{padding:"4px 10px",borderRadius:14,fontSize:11,cursor:"pointer",border:`1px solid ${C.border}`,background:"transparent",color:C.muted,whiteSpace:"nowrap",transition:"all 0.15s"}}>⊙ Sync</button>
+            </div>
           </div>
         </div>
       </div>
+      {showData&&<DataPanel onClose={()=>setShowData(false)} />}
       <div style={{position:"relative",zIndex:1,padding:"26px 20px 80px"}}>
         <div style={{maxWidth:960,margin:"0 auto"}}>
           {tab==="dashboard"&&<Dashboard dailyLogs={dailyLogs} setDailyLogs={setDailyLogs} cycleStart={cycleStart} cycleLength={cycleLength} beautyLogs={beautyLogs} intervals={intervals} allHabits={allHabits} />}
