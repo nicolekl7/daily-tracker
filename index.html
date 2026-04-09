@@ -921,7 +921,7 @@ function SkinTab({logs,setLogs,cycleStart,cycleLength}){
   const getLS2=k=>{try{const v=localStorage.getItem(k);return v?JSON.parse(v):"";}catch{return "";}};
   const handlePhotoUpload=async(field,file)=>{
     setPhotoError("");setUploading(field);
-    const cloudName=(getLS2("nm_cloudinary_name")||"").trim();
+    const cloudName=(getLS2("nm_cloudinary_name")||"dx9jqeqxj").trim();
     const cloudPreset=(getLS2("nm_cloudinary_preset")||"Daily Tracker").trim();
     try{
       if(cloudName&&cloudPreset){
@@ -1607,7 +1607,8 @@ function WeddingTab(){
 // ═══════════════════════════════════════════════════════════════════════════════
 function DataPanel({onClose}){
   const [msg,setMsg]=useState("");
-  const [cloudName,setCloudName]=useLS("nm_cloudinary_name","");
+  const [_cloudName,setCloudName]=useLS("nm_cloudinary_name","dx9jqeqxj");
+  const cloudName=_cloudName||"dx9jqeqxj";
   const [cloudPreset,setCloudPreset]=useLS("nm_cloudinary_preset","Daily Tracker");
   const [testMsg,setTestMsg]=useState("");
   const [testing,setTesting]=useState(false);
