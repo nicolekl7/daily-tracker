@@ -912,6 +912,7 @@ function SkinTab({logs,setLogs,cycleStart,cycleLength}){
   const [openMonths,setOpenMonths]=useState({});
   const [photoError,setPhotoError]=useState("");
   const [uploading,setUploading]=useState(null);
+  const [skinSubmitted,setSkinSubmitted]=useState(false);
   const log=logs[date]||{};
   const upd=(f,v)=>setLogs({...logs,[date]:{...(logs[date]||{}),[f]:v}});
   const fileRefLeft=useRef();
@@ -1033,6 +1034,16 @@ function SkinTab({logs,setLogs,cycleStart,cycleLength}){
         {mkPhotoSlot("skinPhotoFront",fileRefFront,"Front","skinPhoto")}
         {mkPhotoSlot("skinPhotoRight",fileRefRight,"Right →")}
       </div>
+      {(log.skinPhotoLeft||log.skinPhotoFront||log.skinPhoto||log.skinPhotoRight)&&(
+        <button
+          onClick={()=>{setSkinSubmitted(true);setTimeout(()=>setSkinSubmitted(false),3000);}}
+          style={{width:"100%",padding:"11px",borderRadius:9,cursor:"pointer",fontSize:13,fontWeight:500,transition:"all 0.2s",
+            background:skinSubmitted?C.sage+"22":"transparent",
+            border:`1px solid ${skinSubmitted?C.sage:C.border}`,
+            color:skinSubmitted?C.sage:C.muted}}>
+          {skinSubmitted?"Skin logged ✓  "+date:"Save skin entry"}
+        </button>
+      )}
 
       {/* Rating + observations */}
       <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:14}}>
