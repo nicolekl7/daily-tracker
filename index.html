@@ -873,6 +873,25 @@ function DailyLog({logs,setLogs,allHabits,cycleStart,cycleLength}){
 // ═══════════════════════════════════════════════════════════════════════════════
 // SKIN + GALLERY
 // ═══════════════════════════════════════════════════════════════════════════════
+// Compress image to max 900px / JPEG 72% before storing
+function compressImage(file){
+  return new Promise(res=>{
+    const fr=new FileReader();
+    fr.onload=e=>{
+      const img=new Image();
+      img.onload=()=>{
+        const MAX=900;let w=img.width,h=img.height;
+        if(w>MAX||h>MAX){if(w>h){h=Math.round(h*MAX/w);w=MAX;}else{w=Math.round(w*MAX/h);h=MAX;}}
+        const cv=document.createElement("canvas");cv.width=w;cv.height=h;
+        cv.getContext("2d").drawImage(img,0,0,w,h);
+        res(cv.toDataURL("image/jpeg",0.72));
+      };
+      img.src=e.target.result;
+    };
+    fr.readAsDataURL(file);
+  });
+}
+
 function SkinTab({logs,setLogs,cycleStart,cycleLength}){
   const [date,setDate]=useState(todayStr());
   const [compareA,setCompareA]=useState("");
@@ -880,18 +899,26 @@ function SkinTab({logs,setLogs,cycleStart,cycleLength}){
   const [compareMode,setCompareMode]=useState(false);
   const [expanded,setExpanded]=useState(null);
   const [openMonths,setOpenMonths]=useState({});
+  const [photoError,setPhotoError]=useState("");
   const log=logs[date]||{};
   const upd=(f,v)=>setLogs({...logs,[date]:{...(logs[date]||{}),[f]:v}});
   const fileRefLeft=useRef();
   const fileRefFront=useRef();
   const fileRefRight=useRef();
   const concerns=["Rosacea flare","Breakout","Dryness","Oiliness","Sensitivity","Texture","Dullness","Redness","Puffiness","Good skin day"];
+  const handlePhotoUpload=async(field,file)=>{
+    setPhotoError("");
+    const compressed=await compressImage(file);
+    try{localStorage.setItem("__sztest__",compressed);localStorage.removeItem("__sztest__");}
+    catch{setPhotoError("Storage full — browser has no space left. Export a backup (⊙ Sync) to free space, then try again.");return;}
+    upd(field,compressed);
+  };
   const mkPhotoSlot=(field,ref,label,legacyField=null)=>{
     const src=log[field]||(legacyField?log[legacyField]:null);
     const clearField=e=>{e.stopPropagation();if(log[field])upd(field,null);else if(legacyField&&log[legacyField])upd(legacyField,null);};
     return(
       <div style={{borderRadius:12,overflow:"hidden",border:`1px solid ${C.border}`,cursor:"pointer",display:"flex",flexDirection:"column"}} onClick={()=>ref.current.click()}>
-        <input ref={ref} type="file" accept="image/*" onChange={e=>{const f=e.target.files[0];if(!f)return;const r=new FileReader();r.onload=ev=>upd(field,ev.target.result);r.readAsDataURL(f);}} style={{display:"none"}} />
+        <input ref={ref} type="file" accept="image/*" onChange={e=>{const f=e.target.files[0];if(f)handlePhotoUpload(field,f);}} style={{display:"none"}} />
         <div style={{position:"relative",flex:1}}>
           {src
             ?<img src={src} alt={label} style={{width:"100%",aspectRatio:"3/4",objectFit:"cover",display:"block"}} />
@@ -957,6 +984,19 @@ function SkinTab({logs,setLogs,cycleStart,cycleLength}){
           <button onClick={()=>setCompareMode(!compareMode)} style={{padding:"7px 13px",borderRadius:8,cursor:"pointer",fontSize:11,fontWeight:500,background:compareMode?C.accent+"22":"transparent",border:`1px solid ${compareMode?C.accent:C.border}`,color:compareMode?C.accent:C.muted,whiteSpace:"nowrap"}}>⊞ Compare</button>
         </div>
       </div>
+
+      {/* Date warning */}
+      {date!==todayStr()&&(
+        <div style={{padding:"9px 14px",background:C.gold+"15",border:`1px solid ${C.gold}33`,borderRadius:8,fontSize:12,color:C.gold,display:"flex",justifyContent:"space-between",alignItems:"center"}}>
+          <span>Viewing <strong>{date}</strong> — photos you upload here will save to this date, not today.</span>
+          <button onClick={()=>setDate(todayStr())} style={{background:"none",border:`1px solid ${C.gold}55`,borderRadius:6,color:C.gold,cursor:"pointer",fontSize:11,padding:"3px 9px",flexShrink:0,marginLeft:10}}>Go to today</button>
+        </div>
+      )}
+
+      {/* Storage / upload error */}
+      {photoError&&(
+        <div style={{padding:"9px 14px",background:C.danger+"12",border:`1px solid ${C.danger}33`,borderRadius:8,fontSize:12,color:C.danger}}>{photoError}</div>
+      )}
 
       {/* Photos — left / front / right */}
       <div style={{display:"grid",gridTemplateColumns:"1fr 1fr 1fr",gap:10}}>
