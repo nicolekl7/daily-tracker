@@ -898,6 +898,7 @@ function SkinTab({logs,setLogs,cycleStart,cycleLength}){
   const [photoError,setPhotoError]=useState("");
   const [uploading,setUploading]=useState(null);
   const [skinSubmitted,setSkinSubmitted]=useState(false);
+  const [staged,setStaged]=useState([]);
   const log=logs[date]||{};
   const upd=(f,v)=>setLogs({...logs,[date]:{...(logs[date]||{}),[f]:v}});
   const prevDate=new Date(date+"T12:00:00");prevDate.setDate(prevDate.getDate()-1);
@@ -905,6 +906,7 @@ function SkinTab({logs,setLogs,cycleStart,cycleLength}){
   const fileRefLeft=useRef();
   const fileRefFront=useRef();
   const fileRefRight=useRef();
+  const fileRefMulti=useRef();
   const concerns=["Rosacea flare","Breakout","Dryness","Oiliness","Sensitivity","Texture","Dullness","Redness","Puffiness","Good skin day"];
   const getLS2=k=>{try{const v=localStorage.getItem(k);return v?JSON.parse(v):"";}catch{return "";}};
   const handlePhotoUpload=async(field,file)=>{
@@ -923,6 +925,30 @@ function SkinTab({logs,setLogs,cycleStart,cycleLength}){
       }
     }catch(err){setPhotoError("Upload failed: "+(err.message||"check Cloudinary settings in ⊙ Sync"));}
     setUploading(null);
+  };
+  const handleMultiUpload=async(files)=>{
+    setPhotoError("");setUploading("multi");
+    const cloudName=(getLS2("nm_cloudinary_name")||"dx9jqeqxj").trim();
+    const cloudPreset=(getLS2("nm_cloudinary_preset")||"Daily Tracker").trim();
+    const arr=[];
+    for(const file of Array.from(files).slice(0,3)){
+      try{
+        let src;
+        if(cloudName&&cloudPreset){src=await uploadToCloudinary(file,cloudName,cloudPreset);}
+        else{src=await compressImage(file);}
+        arr.push({id:Date.now()+Math.random(),src});
+      }catch(err){setPhotoError("Upload failed: "+(err.message||"check Cloudinary settings in ⊙ Sync"));}
+    }
+    setStaged(prev=>[...prev,...arr]);
+    setUploading(null);
+  };
+  const assignStaged=(sid,field)=>{
+    const item=staged.find(s=>s.id===sid);if(!item)return;
+    upd(field,item.src);setStaged(prev=>prev.filter(s=>s.id!==sid));
+  };
+  const swapPhotos=(a,b)=>{
+    const va=log[a]||null,vb=log[b]||null;
+    setLogs({...logs,[date]:{...(logs[date]||{}),[a]:vb,[b]:va}});
   };
   const mkPhotoSlot=(field,ref,label,legacyField=null)=>{
     const src=log[field]||(legacyField?log[legacyField]:null);
@@ -1015,11 +1041,41 @@ function SkinTab({logs,setLogs,cycleStart,cycleLength}){
         <div style={{padding:"9px 14px",background:C.danger+"12",border:`1px solid ${C.danger}33`,borderRadius:8,fontSize:12,color:C.danger}}>{photoError}</div>
       )}
 
-      {/* Photos — left / front / right */}
-      <div style={{display:"grid",gridTemplateColumns:"1fr 1fr 1fr",gap:10}}>
-        {mkPhotoSlot("skinPhotoLeft",fileRefLeft,"← Left")}
-        {mkPhotoSlot("skinPhotoFront",fileRefFront,"Front","skinPhoto")}
-        {mkPhotoSlot("skinPhotoRight",fileRefRight,"Right →")}
+      {/* Multi-upload */}
+      <div>
+        <input ref={fileRefMulti} type="file" accept="image/*" multiple onChange={e=>{if(e.target.files.length)handleMultiUpload(e.target.files);e.target.value="";}} style={{display:"none"}} />
+        <button onClick={()=>fileRefMulti.current.click()} disabled={uploading==="multi"} style={{width:"100%",padding:"10px",borderRadius:9,cursor:"pointer",fontSize:12,fontWeight:500,background:"transparent",border:`1px solid ${C.border}`,color:uploading==="multi"?C.faint:C.muted,transition:"all 0.15s"}}>
+          {uploading==="multi"?"☁ Uploading...":"📸 Select all photos at once"}
+        </button>
+      </div>
+
+      {/* Staging area — assign uploaded photos to Left / Front / Right */}
+      {staged.length>0&&(
+        <div style={{...card,padding:"14px 16px"}}>
+          <div style={{...lbl,marginBottom:10}}>Drag each photo into a slot — or tap the buttons to assign:</div>
+          <div style={{display:"flex",gap:8}}>
+            {staged.map(item=>(
+              <div key={item.id} style={{flex:1,display:"flex",flexDirection:"column",gap:5}}>
+                <img src={item.src} alt="to assign" style={{width:"100%",aspectRatio:"3/4",objectFit:"cover",borderRadius:8,border:`1px solid ${C.border}`}} />
+                <div style={{display:"flex",gap:3}}>
+                  {[["skinPhotoLeft","←L",C.muted],["skinPhotoFront","Frt",C.accent],["skinPhotoRight","R→",C.muted]].map(([field,tag,col])=>(
+                    <button key={field} onClick={()=>assignStaged(item.id,field)} style={{flex:1,padding:"5px 2px",borderRadius:6,cursor:"pointer",fontSize:10,fontWeight:600,background:col+"18",border:`1px solid ${col}44`,color:col}}>{tag}</button>
+                  ))}
+                </div>
+                <button onClick={()=>setStaged(prev=>prev.filter(s=>s.id!==item.id))} style={{background:"none",border:"none",color:C.faint,cursor:"pointer",fontSize:10,padding:0}}>✕ remove</button>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {/* Photos — left / front / right with swap arrows */}
+      <div style={{display:"flex",gap:6,alignItems:"center"}}>
+        <div style={{flex:1}}>{mkPhotoSlot("skinPhotoLeft",fileRefLeft,"← Left")}</div>
+        <button onClick={()=>swapPhotos("skinPhotoLeft","skinPhotoFront")} title="Swap Left ↔ Front" style={{flexShrink:0,width:26,height:26,borderRadius:"50%",background:C.surface,border:`1px solid ${C.border}`,color:C.muted,cursor:"pointer",fontSize:13,display:"flex",alignItems:"center",justifyContent:"center",padding:0}}>⇄</button>
+        <div style={{flex:1}}>{mkPhotoSlot("skinPhotoFront",fileRefFront,"Front","skinPhoto")}</div>
+        <button onClick={()=>swapPhotos("skinPhotoFront","skinPhotoRight")} title="Swap Front ↔ Right" style={{flexShrink:0,width:26,height:26,borderRadius:"50%",background:C.surface,border:`1px solid ${C.border}`,color:C.muted,cursor:"pointer",fontSize:13,display:"flex",alignItems:"center",justifyContent:"center",padding:0}}>⇄</button>
+        <div style={{flex:1}}>{mkPhotoSlot("skinPhotoRight",fileRefRight,"Right →")}</div>
       </div>
       {(log.skinPhotoLeft||log.skinPhotoFront||log.skinPhoto||log.skinPhotoRight)&&(
         <button
