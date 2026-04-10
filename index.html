@@ -486,7 +486,7 @@ function Dashboard({dailyLogs,setDailyLogs,cycleStart,cycleLength,beautyLogs,int
         {[
           {label:"Bridal Shower",date:"2026-06-27",color:C.accent},
           {label:"Bachelorette",date:"2026-07-30",color:C.gold},
-          {label:"Nicole & Tyler",date:"2026-09-17",color:C.sage,sub:"Tuscany, Italy"},
+          {label:"Wedding",date:"2026-09-17",color:C.sage},
         ].map(({label,date,color,sub})=>{
           const days=daysUntil(new Date(date));
           return(
@@ -1919,10 +1919,9 @@ function DataPanel({onClose}){
 // APP
 // ═══════════════════════════════════════════════════════════════════════════════
 const TABS=[
-  {id:"dashboard",label:"Dashboard"},
+  {id:"daily",label:"Tracker"},
   {id:"skin",label:"Skin"},
-  {id:"daily",label:"Daily Log"},
-  {id:"hair",label:"Hair & Beauty"},
+  {id:"hair",label:"Beauty"},
   {id:"cycle",label:"Cycle"},
   {id:"spend",label:"Spend"},
   {id:"wedding",label:"Wedding"},
@@ -1980,7 +1979,7 @@ function App(){
       <div style={{position:"sticky",top:0,zIndex:100,background:C.bg+"F4",backdropFilter:"blur(16px)",borderBottom:`1px solid ${C.border}`,transition:"background 0.4s,border-color 0.4s"}}>
         <div style={{maxWidth:960,margin:"0 auto",padding:"0 20px"}}>
           <div style={{display:"flex",alignItems:"center",gap:12,height:54}}>
-            <div style={{fontFamily:"'Cormorant Garamond', serif",fontSize:16,color:C.accent,letterSpacing:"0.22em",fontStyle:"italic",flexShrink:0}}>nicole</div>
+            <button onClick={()=>setTab("dashboard")} style={{fontFamily:"'Cormorant Garamond', serif",fontSize:16,color:C.accent,letterSpacing:"0.22em",fontStyle:"italic",flexShrink:0,background:"none",border:"none",cursor:"pointer",padding:0}}>nicole</button>
             <div style={{display:"flex",gap:3,overflowX:"auto",paddingBottom:2,flex:1}}>
               {TABS.map(t=>{
                 const tl=dailyLogs[todayStr()];const noSkinPhoto=t.id==="skin"&&!(tl?.skinPhoto||tl?.skinPhotoFront||tl?.skinPhotoLeft||tl?.skinPhotoRight);
