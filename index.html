@@ -838,21 +838,6 @@ function DailyLog({logs,setLogs,allHabits,cycleStart,cycleLength}){
         <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:6}}>{allHabits.map(h=><Check key={h.id} label={h.emoji+" "+h.label} color={C.sage} checked={(log.habits||[]).includes(h.id)} onChange={e=>updArr("habits",h.id,e.target.checked)} />)}</div>
       </div>
 
-      {/* Skincare */}
-      <div style={card}>
-        <SHead>Skincare</SHead>
-        {["AM","PM"].map(tod=>{
-          const list=tod==="AM"?SKINCARE_AM:SKINCARE_PM;
-          return(
-            <div key={tod} style={{marginBottom:14}}>
-              <div style={lbl}>{tod}</div>
-              <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:5}}>{list.map(p=><Check key={p} label={p} color={C.accent} checked={((log.skincare||{})[tod]||[]).includes(p)} onChange={e=>updSkin(p,tod,e.target.checked)} />)}</div>
-            </div>
-          );
-        })}
-        <div><label style={lbl}>Skin Notes</label><textarea rows={2} value={log.skinNotes||""} onChange={e=>upd("skinNotes",e.target.value)} placeholder="Redness, texture, breakouts..." style={inp} /></div>
-      </div>
-
       {/* Pin a note */}
       <div style={{...card,borderLeft:`3px solid ${C.gold}`}}>
         <SHead>📌 Pin a Note</SHead>
@@ -915,6 +900,8 @@ function SkinTab({logs,setLogs,cycleStart,cycleLength}){
   const [skinSubmitted,setSkinSubmitted]=useState(false);
   const log=logs[date]||{};
   const upd=(f,v)=>setLogs({...logs,[date]:{...(logs[date]||{}),[f]:v}});
+  const prevDate=new Date(date+"T12:00:00");prevDate.setDate(prevDate.getDate()-1);
+  const prevDateStr=prevDate.toISOString().split("T")[0];
   const fileRefLeft=useRef();
   const fileRefFront=useRef();
   const fileRefRight=useRef();
@@ -1044,6 +1031,36 @@ function SkinTab({logs,setLogs,cycleStart,cycleLength}){
           {skinSubmitted?"Skin logged ✓  "+date:"Save skin entry"}
         </button>
       )}
+
+      {/* Skincare — PM last night / AM this morning */}
+      <div style={card}>
+        <SHead>Skincare</SHead>
+        <div style={{marginBottom:14,padding:"12px 14px",background:C.gold+"0C",borderRadius:10,border:`1px solid ${C.gold}22`}}>
+          <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:10}}>
+            <div style={{...lbl,margin:0,color:C.gold}}>PM — Last Night</div>
+            <div style={{fontSize:10,color:C.faint}}>{prevDateStr}</div>
+          </div>
+          <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:5}}>
+            {SKINCARE_PM.map(p=>{
+              const pl=logs[prevDateStr]||{};const pc=pl.skincare||{};const checked=(pc.PM||[]).includes(p);
+              return <Check key={p} label={p} color={C.gold} checked={checked} onChange={e=>{const c=pc;const l=c.PM||[];setLogs({...logs,[prevDateStr]:{...pl,skincare:{...c,PM:e.target.checked?[...l,p]:l.filter(x=>x!==p)}}});}} />;
+            })}
+          </div>
+        </div>
+        <div style={{marginBottom:12,padding:"12px 14px",background:C.sage+"0C",borderRadius:10,border:`1px solid ${C.sage}22`}}>
+          <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:10}}>
+            <div style={{...lbl,margin:0,color:C.sage}}>AM — This Morning</div>
+            <div style={{fontSize:10,color:C.faint}}>{date}</div>
+          </div>
+          <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:5}}>
+            {SKINCARE_AM.map(p=>{
+              const checked=((log.skincare||{}).AM||[]).includes(p);
+              return <Check key={p} label={p} color={C.sage} checked={checked} onChange={e=>{const c=log.skincare||{};const l=c.AM||[];upd("skincare",{...c,AM:e.target.checked?[...l,p]:l.filter(x=>x!==p)});}} />;
+            })}
+          </div>
+        </div>
+        <div><label style={lbl}>Skin Notes</label><textarea rows={2} value={log.skinNotes||""} onChange={e=>upd("skinNotes",e.target.value)} placeholder="Redness, texture, breakouts..." style={{...inp,resize:"none"}} /></div>
+      </div>
 
       {/* Rating + observations */}
       <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:14}}>
@@ -1729,8 +1746,8 @@ function DataPanel({onClose}){
 // ═══════════════════════════════════════════════════════════════════════════════
 const TABS=[
   {id:"dashboard",label:"Dashboard"},
-  {id:"daily",label:"Daily Log"},
   {id:"skin",label:"Skin"},
+  {id:"daily",label:"Daily Log"},
   {id:"hair",label:"Hair & Beauty"},
   {id:"cycle",label:"Cycle"},
   {id:"habits",label:"Habits"},
