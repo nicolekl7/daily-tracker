@@ -1261,62 +1261,17 @@ function HairBeautyTab({dailyLogs,beautyLogs,setBeautyLogs,intervals,setInterval
   const [washLogs,setWashLogs]=useLS("nm_hair",[]);
   const [form,setForm]=useState({date:todayStr(),method:"air dry",conditioner:"regular",products:[],notes:""});
   const [histOpen,setHistOpen]=useState(false);
+  const [calOffset,setCalOffset]=useState(0);
   const hairProds=["Olaplex No.3","Olaplex No.4","Olaplex No.5","K18 Mask","Heat Protectant","Dry Shampoo","Hair Oil","Scalp Serum","Leave-in Conditioner","No products"];
   const sorted=[...washLogs].sort((a,b)=>new Date(a.date)-new Date(b.date));
   const last=sorted[sorted.length-1];
   const daysSince=last?Math.round((new Date()-new Date(last.date+"T12:00:00"))/86400000):null;
 
-  // Month calendar — show current month with wash days highlighted
-  const now=new Date();
-  const yr=now.getFullYear(), mo=now.getMonth();
-  const firstDay=new Date(yr,mo,1).getDay(); // 0=Sun
-  const daysInMonth=new Date(yr,mo+1,0).getDate();
-  const monthName=now.toLocaleDateString("en-US",{month:"long",year:"numeric"});
-
-  // Build set of wash dates for this month
-  const washDates={};
-  washLogs.forEach(w=>{
-    const d=new Date(w.date+"T12:00:00");
-    if(d.getFullYear()===yr&&d.getMonth()===mo){
-      washDates[d.getDate()]={method:w.method,conditioner:w.conditioner||"regular"};
-    }
-  });
-  // Also check daily logs for hairWash
-  Object.entries(dailyLogs).forEach(([ds,v])=>{
-    if(v&&v.hairWash&&v.hairWash!=="no"){
-      const d=new Date(ds+"T12:00:00");
-      if(d.getFullYear()===yr&&d.getMonth()===mo){
-        if(!washDates[d.getDate()]) washDates[d.getDate()]={method:"",conditioner:v.hairWash};
-      }
-    }
-  });
-
   return(
     <div style={{display:"flex",flexDirection:"column",gap:18}}>
       <PTitle>Hair & Beauty</PTitle>
 
-      {/* Month calendar */}
-      <div style={card}>
-        <SHead right={<div style={{display:"flex",gap:12}}><div style={{display:"flex",alignItems:"center",gap:5,fontSize:11,color:C.muted}}><div style={{width:10,height:10,borderRadius:2,background:C.gold+"99"}} />conditioner</div><div style={{display:"flex",alignItems:"center",gap:5,fontSize:11,color:C.muted}}><div style={{width:10,height:10,borderRadius:2,background:C.accent+"99"}} />mask</div></div>}>{monthName}</SHead>
-        {daysSince!==null&&<div style={{marginBottom:14,padding:"9px 13px",background:C.surface,borderRadius:8,display:"flex",gap:16,alignItems:"center"}}><div><div style={lbl}>Days since wash</div><div style={{...serif,fontSize:28,color:C.gold,lineHeight:1}}>{daysSince}</div></div>{last&&<div style={{fontSize:12,color:C.muted}}>{last.date} · {last.method}{last.conditioner&&last.conditioner!=="none"?" · "+last.conditioner:""}</div>}</div>}
-        <div style={{display:"grid",gridTemplateColumns:"repeat(7,1fr)",gap:3,marginBottom:5}}>
-          {["Su","Mo","Tu","We","Th","Fr","Sa"].map(d=><div key={d} style={{textAlign:"center",fontSize:9,color:C.faint,padding:"3px 0"}}>{d}</div>)}
-        </div>
-        <div style={{display:"grid",gridTemplateColumns:"repeat(7,1fr)",gap:3}}>
-          {Array.from({length:firstDay},(_,i)=><div key={"e"+i} />)}
-          {Array.from({length:daysInMonth},(_,i)=>{
-            const day=i+1;const wd=washDates[day];const isToday=day===now.getDate();
-            const bg=wd?wd.conditioner==="mask"?C.accent+"BB":C.gold+"BB":C.border;
-            return(
-              <div key={day} style={{aspectRatio:"1",borderRadius:5,display:"flex",alignItems:"center",justifyContent:"center",background:bg,border:isToday?`1px solid ${C.white}33`:"1px solid transparent",fontSize:10,color:wd?C.bg:C.faint,fontWeight:wd?600:400}}>
-                {day}
-              </div>
-            );
-          })}
-        </div>
-      </div>
-
-      {/* Log a wash */}
+      {/* Log a wash — FIRST */}
       <div style={card}>
         <SHead>Log a Wash</SHead>
         <div style={{display:"grid",gridTemplateColumns:"1fr 1fr 1fr",gap:10,marginBottom:12}}>
@@ -1332,18 +1287,78 @@ function HairBeautyTab({dailyLogs,beautyLogs,setBeautyLogs,intervals,setInterval
         <button onClick={()=>{setWashLogs([...washLogs,{...form,id:Date.now()}]);setForm({date:todayStr(),method:"air dry",conditioner:"regular",products:[],notes:""});}} style={{padding:"9px 18px",borderRadius:8,background:C.accent,color:C.bg,border:"none",cursor:"pointer",fontSize:13,fontWeight:500}}>Log Wash</button>
       </div>
 
-      {/* Wash history toggle */}
+      {/* 3-month compact calendar */}
+      <div style={card}>
+        <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:10}}>
+          <button onClick={()=>setCalOffset(c=>c-3)} style={{padding:"3px 10px",borderRadius:7,background:"transparent",border:`1px solid ${C.border}`,color:C.muted,cursor:"pointer",fontSize:13}}>◂</button>
+          <div style={{display:"flex",gap:14}}>
+            <div style={{display:"flex",alignItems:"center",gap:5,fontSize:10,color:C.muted}}><div style={{width:8,height:8,borderRadius:2,background:C.gold+"AA"}} />conditioner</div>
+            <div style={{display:"flex",alignItems:"center",gap:5,fontSize:10,color:C.muted}}><div style={{width:8,height:8,borderRadius:2,background:C.accent+"AA"}} />mask</div>
+          </div>
+          <button onClick={()=>setCalOffset(c=>c+3)} style={{padding:"3px 10px",borderRadius:7,background:"transparent",border:`1px solid ${C.border}`,color:C.muted,cursor:"pointer",fontSize:13}}>▸</button>
+        </div>
+        <div style={{display:"grid",gridTemplateColumns:"1fr 1fr 1fr",gap:10}}>
+          {[0,1,2].map(mo=>{
+            const base=new Date();base.setDate(1);base.setMonth(base.getMonth()+calOffset+mo);
+            const yr2=base.getFullYear(),mo2=base.getMonth();
+            const fd=new Date(yr2,mo2,1).getDay();
+            const dim=new Date(yr2,mo2+1,0).getDate();
+            const mName=base.toLocaleDateString("en-US",{month:"short",year:"numeric"});
+            const today=todayStr();
+            const wd2={};
+            washLogs.forEach(w=>{const d=new Date(w.date+"T12:00:00");if(d.getFullYear()===yr2&&d.getMonth()===mo2)wd2[d.getDate()]={conditioner:w.conditioner||"regular",id:w.id};});
+            Object.entries(dailyLogs).forEach(([ds,v])=>{if(v&&v.hairWash&&v.hairWash!=="no"){const d=new Date(ds+"T12:00:00");if(d.getFullYear()===yr2&&d.getMonth()===mo2&&!wd2[d.getDate()])wd2[d.getDate()]={conditioner:v.hairWash};}});
+            return(
+              <div key={mo}>
+                <div style={{fontSize:10,fontWeight:600,color:C.muted,textAlign:"center",marginBottom:5}}>{mName}</div>
+                <div style={{display:"grid",gridTemplateColumns:"repeat(7,1fr)",gap:1,marginBottom:2}}>
+                  {["S","M","T","W","T","F","S"].map((d,i)=><div key={i} style={{textAlign:"center",fontSize:7,color:C.faint}}>{d}</div>)}
+                </div>
+                <div style={{display:"grid",gridTemplateColumns:"repeat(7,1fr)",gap:1}}>
+                  {Array.from({length:fd},(_,i)=><div key={"e"+i}/>)}
+                  {Array.from({length:dim},(_,i)=>{
+                    const day=i+1;
+                    const ds=yr2+"-"+String(mo2+1).padStart(2,"0")+"-"+String(day).padStart(2,"0");
+                    const w=wd2[day];const isToday=ds===today;
+                    const bg=w?(w.conditioner==="mask"?C.accent+"CC":C.gold+"CC"):isToday?C.border+"88":"transparent";
+                    return(
+                      <div key={day} title={w&&w.id?"Click to delete this wash":""}
+                        onClick={()=>{if(w&&w.id)setWashLogs(washLogs.filter(x=>x.id!==w.id));}}
+                        style={{aspectRatio:"1",borderRadius:3,display:"flex",alignItems:"center",justifyContent:"center",
+                          background:bg,fontSize:8,color:w?C.bg:isToday?C.accent:C.faint,
+                          fontWeight:w||isToday?600:400,cursor:w&&w.id?"pointer":"default",
+                          outline:isToday&&!w?`1px solid ${C.accent}66`:"none"}}>
+                        {day}
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+            );
+          })}
+        </div>
+        {daysSince!==null&&<div style={{marginTop:10,padding:"8px 12px",background:C.surface,borderRadius:7,display:"flex",gap:10,alignItems:"center"}}>
+          <span style={{...serif,fontSize:20,color:C.gold,lineHeight:1}}>{daysSince}d</span>
+          <span style={{fontSize:12,color:C.muted}}>since last wash{last?" · "+last.date:""}</span>
+        </div>}
+        <div style={{fontSize:10,color:C.faint,marginTop:8}}>Tap a colored day to delete that wash entry.</div>
+      </div>
+
+      {/* Wash history with delete */}
       {sorted.length>0&&(
         <div style={card}>
           <button onClick={()=>setHistOpen(!histOpen)} style={{width:"100%",display:"flex",justifyContent:"space-between",alignItems:"center",background:"none",border:"none",cursor:"pointer",color:C.text,marginBottom:histOpen?12:0}}>
             <div style={{...serif,fontSize:17}}>Wash History</div>
             <span style={{fontSize:13,color:C.muted}}>{histOpen?"▾":"▸"} {sorted.length} sessions</span>
           </button>
-          {histOpen&&[...sorted].reverse().slice(0,20).map((w,i)=>(
-            <div key={w.id||i} style={{padding:"9px 0",borderBottom:`1px solid ${C.border}`}}>
-              <div style={{display:"flex",justifyContent:"space-between",marginBottom:2}}><span style={{fontSize:13,fontWeight:500}}>{w.date}</span><span style={{fontSize:12,color:C.muted}}>{w.method}{w.conditioner&&w.conditioner!=="none"?" · "+w.conditioner:""}</span></div>
-              {w.products?.length>0&&<div style={{fontSize:11,color:C.muted}}>{w.products.join(" · ")}</div>}
-              {w.notes&&<div style={{fontSize:11,color:C.muted,marginTop:1}}>{w.notes}</div>}
+          {histOpen&&[...sorted].reverse().slice(0,30).map((w,i)=>(
+            <div key={w.id||i} style={{display:"flex",justifyContent:"space-between",alignItems:"center",padding:"9px 0",borderBottom:`1px solid ${C.border}`}}>
+              <div>
+                <div style={{display:"flex",alignItems:"center",gap:8,marginBottom:2}}><span style={{fontSize:13,fontWeight:500}}>{w.date}</span><span style={{fontSize:12,color:C.muted}}>{w.method}{w.conditioner&&w.conditioner!=="none"?" · "+w.conditioner:""}</span></div>
+                {w.products?.length>0&&<div style={{fontSize:11,color:C.muted}}>{w.products.join(" · ")}</div>}
+                {w.notes&&<div style={{fontSize:11,color:C.muted,marginTop:1}}>{w.notes}</div>}
+              </div>
+              <button onClick={()=>setWashLogs(washLogs.filter(x=>x.id!==w.id))} style={{background:"none",border:"none",color:C.faint,cursor:"pointer",fontSize:20,lineHeight:1,flexShrink:0,padding:"0 4px"}}>×</button>
             </div>
           ))}
         </div>
@@ -1588,18 +1603,28 @@ function CycleTab({dailyLogs}){
 // ═══════════════════════════════════════════════════════════════════════════════
 // SPEND
 // ═══════════════════════════════════════════════════════════════════════════════
-function SpendTab({logs}){
-  const {C,card,lbl}=React.useContext(ThemeCtx);
+function SpendTab({logs,setLogs}){
+  const {C,card,inp,lbl}=React.useContext(ThemeCtx);
   const [view,setView]=useState("month");
+  const [addForm,setAddForm]=useState({amount:"",category:"",note:"",returnLikely:false,date:todayStr()});
   const allSpend=useMemo(()=>{
     const entries=[];
     Object.entries(logs).forEach(([date,v])=>{
       if(!v)return;
-      if(v.spendItems&&v.spendItems.length>0)v.spendItems.forEach(item=>entries.push({date,amount:item.amount,category:item.category||"Other",note:item.note||"",returnLikely:item.returnLikely||false}));
-      else if(v.spend&&parseFloat(v.spend)>0)entries.push({date,amount:parseFloat(v.spend),category:v.spendCategory||"Other",note:v.spendNote||"",returnLikely:false});
+      if(v.spendItems&&v.spendItems.length>0)v.spendItems.forEach(item=>entries.push({date,amount:item.amount,category:item.category||"Other",note:item.note||"",returnLikely:item.returnLikely||false,id:item.id}));
+      else if(v.spend&&parseFloat(v.spend)>0)entries.push({date,amount:parseFloat(v.spend),category:v.spendCategory||"Other",note:v.spendNote||"",returnLikely:false,id:null});
     });
     return entries.sort((a,b)=>new Date(b.date)-new Date(a.date));
   },[logs]);
+  const addItem=()=>{
+    if(!addForm.amount||isNaN(parseFloat(addForm.amount)))return;
+    const date=addForm.date||todayStr();
+    const newItem={id:Date.now(),amount:parseFloat(addForm.amount),category:addForm.category||"Other",note:addForm.note,returnLikely:addForm.returnLikely};
+    setLogs(prev=>{const existing=prev[date]||{};return{...prev,[date]:{...existing,spendItems:[...(existing.spendItems||[]),newItem]}};});
+    setAddForm({amount:"",category:"",note:"",returnLikely:false,date:todayStr()});
+  };
+  const deleteItem=(date,id)=>{if(!id)return;setLogs(prev=>({...prev,[date]:{...prev[date],spendItems:(prev[date]?.spendItems||[]).filter(i=>i.id!==id)}}));};
+  const toggleReturn=(date,id)=>{if(!id)return;setLogs(prev=>({...prev,[date]:{...prev[date],spendItems:(prev[date]?.spendItems||[]).map(i=>i.id===id?{...i,returnLikely:!i.returnLikely}:i)}}));};
   const now=new Date();
   const thisMonth=now.getFullYear()+"-"+String(now.getMonth()+1).padStart(2,"0");
   const thisWeekStart=weekStart(todayStr());
@@ -1617,6 +1642,21 @@ function SpendTab({logs}){
   return(
     <div style={{display:"flex",flexDirection:"column",gap:18}}>
       <PTitle>Spend</PTitle>
+      <div style={card}>
+        <SHead>Log Spend</SHead>
+        <div style={{display:"grid",gridTemplateColumns:"90px 1fr",gap:8,marginBottom:7}}>
+          <div><label style={lbl}>Amount</label><div style={{display:"flex",alignItems:"center",gap:4}}><span style={{color:C.muted,fontSize:13}}>$</span><input type="number" step="0.01" value={addForm.amount} onChange={e=>setAddForm({...addForm,amount:e.target.value})} onKeyDown={e=>e.key==="Enter"&&addItem()} placeholder="0.00" style={{...inp,...serif,fontSize:15}} /></div></div>
+          <div><label style={lbl}>Category</label><select value={addForm.category} onChange={e=>setAddForm({...addForm,category:e.target.value})} style={inp}><option value="">Category</option>{SPEND_CATS.map(c=><option key={c} value={c}>{c}</option>)}</select></div>
+        </div>
+        <div style={{display:"flex",gap:7,alignItems:"flex-end",marginBottom:7}}>
+          <div style={{flex:1}}><label style={lbl}>Note</label><input value={addForm.note} onChange={e=>setAddForm({...addForm,note:e.target.value})} onKeyDown={e=>e.key==="Enter"&&addItem()} placeholder="What was it?" style={inp} /></div>
+          <div><label style={lbl}>Date</label><input type="date" value={addForm.date} onChange={e=>setAddForm({...addForm,date:e.target.value})} style={{...inp,padding:"9px 8px"}} /></div>
+        </div>
+        <div style={{display:"flex",gap:7}}>
+          <button onClick={()=>setAddForm({...addForm,returnLikely:!addForm.returnLikely})} style={{padding:"9px 11px",borderRadius:8,cursor:"pointer",fontSize:11,fontWeight:500,background:addForm.returnLikely?C.gold+"22":"transparent",border:`1px solid ${addForm.returnLikely?C.gold:C.border}`,color:addForm.returnLikely?C.gold:C.muted}}>↩ Return?</button>
+          <button onClick={addItem} style={{padding:"9px 16px",borderRadius:8,background:C.accent,color:C.bg,border:"none",cursor:"pointer",fontSize:13,fontWeight:500,flex:1}}>+ Add</button>
+        </div>
+      </div>
       <div style={{display:"flex",gap:10}}>
         {[{l:"Today",v:todayTotal,c:C.sage},{l:"This Week",v:weekTotal,c:C.gold},{l:"This Month",v:monthTotal,c:C.accent}].map(({l,v,c})=>(
           <div key={l} style={{...card,flex:1,textAlign:"center"}}><div style={lbl}>{l}</div><div style={{...serif,fontSize:26,fontWeight:300,color:c,lineHeight:1}}>${v.toFixed(0)}<span style={{fontSize:11,color:C.muted}}>.{String(Math.round((v%1)*100)).padStart(2,"0")}</span></div></div>
@@ -1638,10 +1678,13 @@ function SpendTab({logs}){
       {allSpend.length>=4&&<div style={card}><SHead>Weekly Trend</SHead><MiniChart data={weeks} colors={{spend:C.gold}} height={75} /><div style={{display:"flex",justifyContent:"space-between",marginTop:6}}>{weeks.map((w,i)=><div key={i} style={{flex:1,textAlign:"center",fontSize:9,color:C.faint}}>{w.label}</div>)}</div></div>}
       <div style={card}>
         <SHead>Recent</SHead>
-        {allSpend.length===0?<div style={{textAlign:"center",padding:"16px 0",color:C.faint,fontSize:13}}>No spend logged yet.</div>:allSpend.slice(0,25).map((s,i)=>(
-          <div key={i} style={{display:"flex",justifyContent:"space-between",alignItems:"center",padding:"9px 0",borderBottom:`1px solid ${C.border}`,opacity:s.returnLikely?0.5:1}}>
+        {allSpend.length===0?<div style={{textAlign:"center",padding:"16px 0",color:C.faint,fontSize:13}}>No spend logged yet.</div>:allSpend.slice(0,30).map((s,i)=>(
+          <div key={s.id||i} style={{display:"flex",justifyContent:"space-between",alignItems:"center",padding:"9px 0",borderBottom:`1px solid ${C.border}`,opacity:s.returnLikely?0.5:1}}>
             <div style={{flex:1}}><div style={{display:"flex",alignItems:"center",gap:7,marginBottom:1,flexWrap:"wrap"}}><div style={{width:6,height:6,borderRadius:"50%",background:CAT_COLORS[s.category]||C.muted,flexShrink:0}} /><span style={{fontSize:11,color:C.muted}}>{s.category}</span><span style={{fontSize:10,color:C.faint}}>· {s.date}</span>{s.returnLikely&&<span style={{fontSize:9,color:C.gold,background:C.gold+"18",borderRadius:7,padding:"1px 5px"}}>↩</span>}</div>{s.note&&<div style={{fontSize:12,color:C.text,paddingLeft:13}}>{s.note}</div>}</div>
-            <div style={{...serif,fontSize:16,color:s.returnLikely?C.gold:C.text,marginLeft:10,textDecoration:s.returnLikely?"line-through":"none"}}>${s.amount.toFixed(2)}</div>
+            <div style={{display:"flex",alignItems:"center",gap:6,marginLeft:10}}>
+              <div style={{...serif,fontSize:16,color:s.returnLikely?C.gold:C.text,textDecoration:s.returnLikely?"line-through":"none"}}>${s.amount.toFixed(2)}</div>
+              {s.id&&<><button onClick={()=>toggleReturn(s.date,s.id)} title="Toggle return" style={{background:"none",border:`1px solid ${s.returnLikely?C.gold+"66":C.border}`,borderRadius:5,color:s.returnLikely?C.gold:C.faint,cursor:"pointer",fontSize:11,padding:"2px 7px"}}>↩</button><button onClick={()=>deleteItem(s.date,s.id)} title="Delete" style={{background:"none",border:"none",color:C.faint,cursor:"pointer",fontSize:17,lineHeight:1}}>×</button></>}
+            </div>
           </div>
         ))}
       </div>
@@ -1670,6 +1713,13 @@ function WeddingTab(){
   const cats=["venue","vendors","attire","beauty & wellness","guests","travel & logistics","ceremony","reception","budget","honeymoon","misc"];
   const priColors={high:C.danger,medium:C.gold,low:C.sage};
   const add=()=>{if(!form.text.trim())return;setWtasks([...wtasks,{...form,id:Date.now(),done:false}]);setForm({...form,text:"",month:""});};
+  const [editId,setEditId]=useState(null);
+  const [editText,setEditText]=useState("");
+  const [dragId,setDragId]=useState(null);
+  const [dropTarget,setDropTarget]=useState(null);
+  const startEdit=(task)=>{setEditId(task.id);setEditText(task.text);};
+  const saveEdit=(id)=>{setWtasks(wtasks.map(t=>t.id===id?{...t,text:editText}:t));setEditId(null);};
+  const moveToMonth=(id,month)=>{setWtasks(wtasks.map(t=>t.id===id?{...t,month}:t));};
   const grouped=cats.reduce((acc,c)=>{const ts=wtasks.filter(t=>t.category===c&&!t.done&&!t.month);if(ts.length)acc[c]=ts;return acc;},{});
   const completed=wtasks.filter(t=>t.done);
   const colors={wedding:C.sage,bach:C.gold,bridal:C.accent};
@@ -1740,7 +1790,7 @@ function WeddingTab(){
           const isPast=daysLeft<=-28;
           const isCurrent=!isPast&&daysLeft<=31;
           return(
-            <div key={i} style={{padding:"12px 0",borderBottom:i<timeline.length-1?`1px solid ${C.border}`:"none",opacity:isPast?0.45:1}}>
+            <div key={i} onDragOver={e=>e.preventDefault()} onDrop={e=>{e.preventDefault();if(dragId){moveToMonth(dragId,m.month);setDragId(null);setDropTarget(null);}}} onDragEnter={()=>setDropTarget(m.month)} onDragLeave={e=>{if(!e.currentTarget.contains(e.relatedTarget))setDropTarget(null);}} style={{padding:"12px 0",borderBottom:i<timeline.length-1?`1px solid ${C.border}`:"none",opacity:isPast?0.45:1,borderRadius:dropTarget===m.month?6:0,outline:dropTarget===m.month?`2px dashed ${m.color}55`:"none",transition:"outline 0.1s"}}>
               <div style={{display:"flex",justifyContent:"space-between",alignItems:"flex-start",marginBottom:5}}>
                 <div>
                   <div style={{display:"flex",alignItems:"center",gap:6,marginBottom:2}}>
@@ -1760,11 +1810,19 @@ function WeddingTab(){
                   </div>
                 ))}
                 {wtasks.filter(t=>t.month===m.month&&!t.done).map(t=>(
-                  <div key={t.id} style={{fontSize:12,color:isCurrent?C.text:C.muted,display:"flex",gap:6,alignItems:"center",justifyContent:"space-between"}}>
-                    <div style={{display:"flex",gap:6,alignItems:"baseline"}}>
-                      <span style={{color:m.color+(isCurrent?"CC":"77"),flexShrink:0,fontSize:10}}>→</span>{t.text}
+                  <div key={t.id} draggable onDragStart={()=>{setDragId(t.id);}} onDragEnd={()=>{setDragId(null);setDropTarget(null);}}
+                    style={{fontSize:12,color:isCurrent?C.text:C.muted,display:"flex",gap:6,alignItems:"center",justifyContent:"space-between",cursor:"grab",opacity:dragId===t.id?0.35:1,borderRadius:4,padding:"1px 0"}}>
+                    <div style={{display:"flex",gap:6,alignItems:"baseline",flex:1}}>
+                      <span style={{color:m.color+(isCurrent?"CC":"77"),flexShrink:0,fontSize:10}}>→</span>
+                      {editId===t.id
+                        ?<input value={editText} autoFocus onChange={e=>setEditText(e.target.value)} onKeyDown={e=>{if(e.key==="Enter")saveEdit(t.id);if(e.key==="Escape")setEditId(null);}} onBlur={()=>saveEdit(t.id)} style={{flex:1,background:"transparent",border:`1px solid ${C.border}`,borderRadius:4,color:C.text,padding:"1px 6px",fontSize:11,fontFamily:"'DM Sans',sans-serif"}} />
+                        :<span>{t.text}</span>
+                      }
                     </div>
-                    <button onClick={()=>setWtasks(wtasks.map(x=>x.id===t.id?{...x,done:true}:x))} style={{background:"none",border:`1px solid ${C.border}`,borderRadius:4,color:C.faint,cursor:"pointer",fontSize:9,padding:"1px 6px",flexShrink:0}}>done</button>
+                    <div style={{display:"flex",gap:3,alignItems:"center",flexShrink:0}}>
+                      <button onClick={()=>startEdit(t)} title="Edit" style={{background:"none",border:"none",color:C.faint,cursor:"pointer",fontSize:11,padding:"0 1px",lineHeight:1}}>✎</button>
+                      <button onClick={()=>setWtasks(wtasks.map(x=>x.id===t.id?{...x,done:true}:x))} style={{background:"none",border:`1px solid ${C.border}`,borderRadius:4,color:C.faint,cursor:"pointer",fontSize:9,padding:"1px 6px"}}>done</button>
+                    </div>
                   </div>
                 ))}
               </div>
@@ -1783,20 +1841,30 @@ function WeddingTab(){
           <select value={form.priority} onChange={e=>setForm({...form,priority:e.target.value})} style={inp}><option value="high">High</option><option value="medium">Medium</option><option value="low">Low</option></select>
           <button onClick={add} style={{padding:"9px 16px",borderRadius:8,background:C.accent,color:C.bg,border:"none",cursor:"pointer",fontSize:13,fontWeight:500}}>Add</button>
         </div>
+        {dragId&&<div onDragOver={e=>e.preventDefault()} onDrop={e=>{e.preventDefault();moveToMonth(dragId,"");setDragId(null);setDropTarget(null);}} onDragEnter={()=>setDropTarget("__none__")} onDragLeave={e=>{if(!e.currentTarget.contains(e.relatedTarget))setDropTarget(null);}} style={{padding:"8px 12px",borderRadius:7,border:`2px dashed ${dropTarget==="__none__"?C.accent:C.border}`,color:dropTarget==="__none__"?C.accent:C.faint,fontSize:11,textAlign:"center",marginBottom:10,transition:"all 0.1s",background:dropTarget==="__none__"?C.accent+"0A":"transparent"}}>Drop here to remove month assignment</div>}
         {Object.entries(grouped).map(([cat,tasks])=>(
           <div key={cat} style={{marginBottom:14}}>
             <div style={{...lbl,marginBottom:8}}>{cat}</div>
             {tasks.map(task=>(
-              <div key={task.id} style={{display:"flex",alignItems:"center",gap:9,padding:"7px 0",borderBottom:`1px solid ${C.border}`}}>
+              <div key={task.id} draggable onDragStart={()=>setDragId(task.id)} onDragEnd={()=>{setDragId(null);setDropTarget(null);}}
+                style={{display:"flex",alignItems:"center",gap:7,padding:"7px 0",borderBottom:`1px solid ${C.border}`,cursor:"grab",opacity:dragId===task.id?0.35:1}}>
                 <div style={{width:7,height:7,borderRadius:"50%",background:priColors[task.priority],flexShrink:0}} />
-                <span style={{fontSize:13,flex:1}}>{task.text}</span>
-                <button onClick={()=>setWtasks(wtasks.map(t=>t.id===task.id?{...t,done:true}:t))} style={{padding:"3px 9px",borderRadius:5,background:"transparent",border:`1px solid ${C.border}`,color:C.muted,cursor:"pointer",fontSize:11}}>Done</button>
-                <button onClick={()=>setWtasks(wtasks.filter(t=>t.id!==task.id))} style={{background:"none",border:"none",color:C.faint,cursor:"pointer",fontSize:17}}>×</button>
+                {editId===task.id
+                  ?<input value={editText} autoFocus onChange={e=>setEditText(e.target.value)} onKeyDown={e=>{if(e.key==="Enter")saveEdit(task.id);if(e.key==="Escape")setEditId(null);}} onBlur={()=>saveEdit(task.id)} style={{...inp,flex:1,padding:"4px 8px",fontSize:13}} />
+                  :<span style={{fontSize:13,flex:1}}>{task.text}</span>
+                }
+                <select value={task.month||""} onChange={e=>moveToMonth(task.id,e.target.value)} style={{fontSize:10,padding:"3px 5px",borderRadius:5,background:C.surface,border:`1px solid ${C.border}`,color:task.month?C.accent:C.faint,cursor:"pointer",fontFamily:"'DM Sans',sans-serif",flexShrink:0}}>
+                  <option value="">Month</option>
+                  {TIMELINE_MONTHS.map(m=><option key={m} value={m}>{m.split(" ")[0]}</option>)}
+                </select>
+                <button onClick={()=>startEdit(task)} title="Edit text" style={{background:"none",border:"none",color:C.muted,cursor:"pointer",fontSize:13,padding:"0 1px",lineHeight:1,flexShrink:0}}>✎</button>
+                <button onClick={()=>setWtasks(wtasks.map(t=>t.id===task.id?{...t,done:true}:t))} style={{padding:"3px 9px",borderRadius:5,background:"transparent",border:`1px solid ${C.border}`,color:C.muted,cursor:"pointer",fontSize:11,flexShrink:0}}>Done</button>
+                <button onClick={()=>setWtasks(wtasks.filter(t=>t.id!==task.id))} style={{background:"none",border:"none",color:C.faint,cursor:"pointer",fontSize:17,flexShrink:0}}>×</button>
               </div>
             ))}
           </div>
         ))}
-        {Object.keys(grouped).length===0&&wtasks.filter(t=>!t.done).length===0&&<div style={{textAlign:"center",padding:"16px 0",color:C.faint,fontSize:13}}>No open tasks ✓</div>}
+        {Object.keys(grouped).length===0&&wtasks.filter(t=>!t.done&&!t.month).length===0&&<div style={{textAlign:"center",padding:"16px 0",color:C.faint,fontSize:13}}>All tasks assigned to months ✓</div>}
         {completed.length>0&&(
           <div style={{marginTop:12}}>
             <div style={lbl}>Completed ({completed.length})</div>
@@ -1985,7 +2053,7 @@ function App(){
       <div style={{position:"sticky",top:0,zIndex:100,background:C.bg+"F4",backdropFilter:"blur(16px)",borderBottom:`1px solid ${C.border}`,transition:"background 0.4s,border-color 0.4s"}}>
         <div style={{maxWidth:960,margin:"0 auto",padding:"0 20px"}}>
           <div style={{display:"flex",alignItems:"center",gap:12,height:54}}>
-            <button onClick={()=>setTab("dashboard")} style={{fontFamily:"'Cormorant Garamond', serif",fontSize:16,color:C.accent,letterSpacing:"0.22em",fontStyle:"italic",flexShrink:0,background:"none",border:"none",cursor:"pointer",padding:0}}>nicole</button>
+            <button onClick={()=>setTab("dashboard")} title="Home" style={{fontSize:18,color:C.accent,flexShrink:0,background:"none",border:"none",cursor:"pointer",padding:"0 2px",lineHeight:1}}>⌂</button>
             <div style={{display:"flex",gap:3,overflowX:"auto",paddingBottom:2,flex:1}}>
               {TABS.map(t=>{
                 const tl=dailyLogs[todayStr()];const noSkinPhoto=t.id==="skin"&&!(tl?.skinPhoto||tl?.skinPhotoFront||tl?.skinPhotoLeft||tl?.skinPhotoRight);
@@ -2013,7 +2081,7 @@ function App(){
           {tab==="skin"&&<SkinTab logs={dailyLogs} setLogs={setDailyLogs} cycleStart={cycleStart} cycleLength={cycleLength} />}
           {tab==="hair"&&<HairBeautyTab dailyLogs={dailyLogs} beautyLogs={beautyLogs} setBeautyLogs={setBeautyLogs} intervals={intervals} setIntervals={setIntervals} />}
           {tab==="cycle"&&<CycleTab dailyLogs={dailyLogs} />}
-          {tab==="spend"&&<SpendTab logs={dailyLogs} />}
+          {tab==="spend"&&<SpendTab logs={dailyLogs} setLogs={setDailyLogs} />}
           {tab==="wedding"&&<WeddingTab />}
         </div>
       </div>
