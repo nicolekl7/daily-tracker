@@ -238,7 +238,7 @@ const CAT_COLORS = {"Food & Dining":"#C9A96E","Beauty & Self-care":"#C4856A","Fa
 
 // ─── DESIGN ──────────────────────────────────────────────────────────────────
 const DARK_C  = {bg:"#0A0908",surface:"#131210",card:"#1A1814",border:"#272420",text:"#EDE9E1",muted:"#7A7165",faint:"#3D3830",accent:"#C4856A",gold:"#C9A96E",sage:"#7A9B8A",danger:"#D97070",white:"#F7F4EF"};
-const LIGHT_C = {bg:"#FAF7F2",surface:"#F0E8DD",card:"#FFFDFB",border:"#DDD4C8",text:"#1C1714",muted:"#8A7A6E",faint:"#D4C8BC",accent:"#C4856A",gold:"#A07830",sage:"#527A68",danger:"#C44040",white:"#FFFDFB"};
+const LIGHT_C = {bg:"#FAF7F2",surface:"#F0E8DD",card:"#FFFDFB",border:"#DDD4C8",text:"#1C1714",muted:"#8A7A6E",faint:"#D4C8BC",accent:"#C4856A",gold:"#A07830",sage:"#527A68",danger:"#C44040",white:"#0E0C0A"};
 const serif = {fontFamily:"'Cormorant Garamond', serif"};
 const ThemeCtx = React.createContext(null);
 
@@ -421,6 +421,8 @@ function SpendLogger({log,upd}){
 // ═══════════════════════════════════════════════════════════════════════════════
 function Dashboard({dailyLogs,setDailyLogs,cycleStart,cycleLength,beautyLogs,intervals}){
   const {C,card,inp,lbl}=React.useContext(ThemeCtx);
+  const {rate,loading:eurLoading,fetched:eurFetched,refresh:eurRefresh}=useEurUsd();
+  const [eurQuick,setEurQuick]=useState("");
   const phase=getCyclePhase(cycleStart,cycleLength);
   const pd=phase?PHASES[phase.phase]:null;
   const today=dailyLogs[todayStr()]||{};
@@ -497,6 +499,32 @@ function Dashboard({dailyLogs,setDailyLogs,cycleStart,cycleLength,beautyLogs,int
           );
         })}
       </div>
+
+      {/* EUR/USD snapshot */}
+      {(()=>{
+        const rateStatus=!rate?null:rate>=1.15?"strong":rate>=1.10?"neutral":"weak";
+        const rateColor={strong:C.sage,neutral:C.gold,weak:C.danger}[rateStatus]||C.muted;
+        const usdQuick=eurQuick&&rate?(parseFloat(eurQuick)*rate).toFixed(2):null;
+        return(
+          <div style={{...card,padding:"14px 20px",display:"flex",alignItems:"center",gap:16,flexWrap:"wrap",borderLeft:`3px solid ${rate?rateColor:C.border}`}}>
+            <div style={{flexShrink:0}}>
+              <div style={lbl}>EUR / USD</div>
+              {eurLoading?<span style={{fontSize:13,color:C.faint}}>…</span>
+                :rate?<span style={{...serif,fontSize:26,fontWeight:300,color:rateColor,lineHeight:1}}>{rate.toFixed(4)}</span>
+                :<span style={{fontSize:13,color:C.faint}}>—</span>}
+              {eurFetched&&<div style={{fontSize:9,color:C.faint,marginTop:1}}>{eurFetched}</div>}
+            </div>
+            <div style={{flex:1,minWidth:140,display:"flex",alignItems:"center",gap:8}}>
+              <div style={{position:"relative",flex:1}}>
+                <span style={{position:"absolute",left:9,top:"50%",transform:"translateY(-50%)",fontSize:13,color:C.muted,pointerEvents:"none"}}>€</span>
+                <input type="number" value={eurQuick} onChange={e=>setEurQuick(e.target.value)} placeholder="amount" style={{...inp,paddingLeft:22,fontSize:13}} />
+              </div>
+              {usdQuick&&<div style={{fontSize:13,color:C.sage,fontWeight:500,flexShrink:0}}>= ${parseFloat(usdQuick).toLocaleString()}</div>}
+            </div>
+            <button onClick={eurRefresh} disabled={eurLoading} style={{padding:"4px 10px",borderRadius:7,background:"transparent",border:`1px solid ${C.border}`,color:C.faint,cursor:"pointer",fontSize:11,flexShrink:0}}>↻</button>
+          </div>
+        );
+      })()}
 
       {/* Cycle — compact dashboard card */}
       {pd?(
@@ -1645,12 +1673,18 @@ function WeddingTab(){
   const completed=wtasks.filter(t=>t.done);
   const colors={wedding:C.sage,bach:C.gold,bridal:C.accent};
   const timeline=[
-    {month:"April 2026",date:new Date(2026,3,1),note:"Final vendor payments, dress fittings begin"},
-    {month:"May 2026",date:new Date(2026,4,1),note:"Rehearsal dinner planning, honeymoon booking"},
-    {month:"June 2026",date:new Date(2026,5,1),note:"Bridal Shower — June 27",event:true},
-    {month:"July 2026",date:new Date(2026,6,1),note:"Bachelorette — July 30",event:true},
-    {month:"August 2026",date:new Date(2026,7,1),note:"Final confirmations, welcome bags, rest"},
-    {month:"September 2026",date:new Date(2026,8,1),note:"Nicole & Tyler — September 17 ✦",highlight:true},
+    {month:"April 2026",label:"5 months out",tagline:"The vendor-locking month",date:new Date(2026,3,1),color:C.accent,
+      tasks:["Finalize all vendors","Order & send invitations","Start planning honeymoon","Book flights & rental car"]},
+    {month:"May 2026",label:"4 months out",date:new Date(2026,4,1),color:C.gold,
+      tasks:["Send bridal shower invites","Book honeymoon accommodation"]},
+    {month:"June 2026",label:"3 months out",date:new Date(2026,5,1),color:C.sage,
+      tasks:["Final guest count — triggers seating chart, meal count, florals & payment schedule","Bridal Shower — June 27"]},
+    {month:"July 2026",label:"2 months out",date:new Date(2026,6,1),color:C.gold,
+      tasks:["Submit confirmed headcount to venue and all vendors","Lock in wedding day timeline (ceremony, aperitivo, dinner, disco, cake cutting)","Bachelorette — July 30"]},
+    {month:"August 2026",label:"1 month out",tagline:"Run-of-show & final vendor sync",date:new Date(2026,7,1),color:C.accent,
+      tasks:["Mise en place confirmation due ~August 17 — venue requires this","Final vendor calls: confirm arrival times, load-in windows, contact sheets","Book nails, hair, facials for wedding weekend"]},
+    {month:"September 2026",label:"Wedding month",tagline:"Nicole & Tyler — Sep 17 ✦",date:new Date(2026,8,1),color:C.sage,highlight:true,
+      tasks:["Arrive in Italy, settle in","Rehearsal dinner","Wedding Day — September 17"]},
   ];
   return(
     <div style={{display:"flex",flexDirection:"column",gap:18}}>
@@ -1701,14 +1735,37 @@ function WeddingTab(){
 
       {/* Timeline */}
       <div style={card}>
-        <SHead>Timeline</SHead>
-        {timeline.map((m,i)=>(
-          <div key={i} style={{display:"flex",gap:12,padding:"9px 0",borderBottom:`1px solid ${C.border}`,alignItems:"center"}}>
-            <div style={{width:4,height:4,borderRadius:"50%",background:m.highlight?C.sage:m.event?C.accent:C.border,flexShrink:0}} />
-            <div style={{flex:1}}><div style={{fontSize:13,fontWeight:m.event||m.highlight?600:400,color:m.highlight?C.sage:m.event?C.accent:C.text}}>{m.month}</div><div style={{fontSize:11,color:C.muted,marginTop:1}}>{m.note}</div></div>
-            <div style={{fontSize:11,color:C.faint}}>{Math.ceil((m.date-new Date())/86400000)>0?Math.ceil((m.date-new Date())/86400000)+"d":"now"}</div>
-          </div>
-        ))}
+        <SHead>Month-by-Month</SHead>
+        {timeline.map((m,i)=>{
+          const daysLeft=Math.ceil((m.date-new Date())/86400000);
+          const isPast=daysLeft<=-28;
+          const isCurrent=!isPast&&daysLeft<=31;
+          return(
+            <div key={i} style={{padding:"12px 0",borderBottom:i<timeline.length-1?`1px solid ${C.border}`:"none",opacity:isPast?0.45:1}}>
+              <div style={{display:"flex",justifyContent:"space-between",alignItems:"flex-start",marginBottom:5}}>
+                <div>
+                  <div style={{display:"flex",alignItems:"center",gap:6,marginBottom:2}}>
+                    <div style={{width:5,height:5,borderRadius:"50%",background:m.color,flexShrink:0}} />
+                    <span style={{fontSize:9,color:m.color,fontWeight:700,letterSpacing:"0.1em",textTransform:"uppercase"}}>{m.label}</span>
+                  </div>
+                  <div style={{fontSize:14,fontWeight:isCurrent?600:400,color:isCurrent?C.white:C.text}}>
+                    {m.month}{m.tagline&&<span style={{fontSize:11,color:C.muted,fontWeight:300}}> — {m.tagline}</span>}
+                  </div>
+                </div>
+                <div style={{fontSize:10,color:isPast?C.faint:isCurrent?m.color:C.faint,flexShrink:0,fontWeight:isCurrent?600:400,paddingTop:2}}>
+                  {isPast?"✓":daysLeft<=0?"this month":daysLeft+"d"}
+                </div>
+              </div>
+              <div style={{paddingLeft:11,display:"flex",flexDirection:"column",gap:3}}>
+                {m.tasks.map((t,j)=>(
+                  <div key={j} style={{fontSize:12,color:isCurrent?C.muted:C.faint,display:"flex",gap:6,alignItems:"baseline"}}>
+                    <span style={{color:m.color+(isCurrent?"AA":"55"),flexShrink:0,fontSize:10}}>·</span>{t}
+                  </div>
+                ))}
+              </div>
+            </div>
+          );
+        })}
       </div>
 
       {/* Tasks */}
