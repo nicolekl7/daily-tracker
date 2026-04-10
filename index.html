@@ -502,8 +502,8 @@ function Dashboard({dailyLogs,setDailyLogs,cycleStart,cycleLength,beautyLogs,int
 
       {/* EUR/USD snapshot */}
       {(()=>{
-        const rateStatus=!rate?null:rate>=1.15?"strong":rate>=1.10?"neutral":"weak";
-        const rateColor={strong:C.sage,neutral:C.gold,weak:C.danger}[rateStatus]||C.muted;
+        const rateStatus=!rate?null:rate>1.16?"weak":"strong";
+        const rateColor={strong:C.sage,weak:C.danger}[rateStatus]||C.muted;
         const usdQuick=eurQuick&&rate?(parseFloat(eurQuick)*rate).toFixed(2):null;
         return(
           <div style={{...card,padding:"14px 20px",display:"flex",alignItems:"center",gap:16,flexWrap:"wrap",borderLeft:`3px solid ${rate?rateColor:C.border}`}}>
@@ -1655,25 +1655,26 @@ function SpendTab({logs}){
 function WeddingTab(){
   const {C,card,inp,lbl}=React.useContext(ThemeCtx);
   const [wdates,setWdates]=useLS("nm_wdates",{
-    wedding:{date:"2026-09-17",label:"Wedding Day",location:"Tuscany, Italy"},
-    bach:{date:"2026-07-30",label:"Bachelorette",location:""},
-    bridal:{date:"2026-06-27",label:"Bridal Shower",location:""},
+    wedding:{date:"2026-09-17",label:"Wedding Day"},
+    bach:{date:"2026-07-30",label:"Bachelorette"},
+    bridal:{date:"2026-06-27",label:"Bridal Shower"},
   });
   const [wtasks,setWtasks]=useLS("nm_wtasks",[]);
-  const [form,setForm]=useState({text:"",category:"vendors",priority:"high"});
+  const [form,setForm]=useState({text:"",category:"vendors",month:"",priority:"high"});
   const {rate,fetched,loading,error,refresh}=useEurUsd();
   const [eurAmount,setEurAmount]=useState("");
   const usdResult=eurAmount&&rate?(parseFloat(eurAmount)*rate).toFixed(2):null;
-  const rateStatus=!rate?null:rate>=1.15?"strong":rate>=1.10?"neutral":"weak";
-  const rateColor={strong:C.sage,neutral:C.gold,weak:C.danger}[rateStatus]||C.muted;
+  const rateStatus=!rate?null:rate>1.16?"weak":"strong";
+  const rateColor={strong:C.sage,weak:C.danger}[rateStatus]||C.muted;
+  const TIMELINE_MONTHS=["April 2026","May 2026","June 2026","July 2026","August 2026","September 2026"];
   const cats=["venue","vendors","attire","beauty & wellness","guests","travel & logistics","ceremony","reception","budget","honeymoon","misc"];
   const priColors={high:C.danger,medium:C.gold,low:C.sage};
-  const add=()=>{if(!form.text.trim())return;setWtasks([...wtasks,{...form,id:Date.now(),done:false}]);setForm({...form,text:""}); };
-  const grouped=cats.reduce((acc,c)=>{const ts=wtasks.filter(t=>t.category===c&&!t.done);if(ts.length)acc[c]=ts;return acc;},{});
+  const add=()=>{if(!form.text.trim())return;setWtasks([...wtasks,{...form,id:Date.now(),done:false}]);setForm({...form,text:"",month:""});};
+  const grouped=cats.reduce((acc,c)=>{const ts=wtasks.filter(t=>t.category===c&&!t.done&&!t.month);if(ts.length)acc[c]=ts;return acc;},{});
   const completed=wtasks.filter(t=>t.done);
   const colors={wedding:C.sage,bach:C.gold,bridal:C.accent};
   const timeline=[
-    {month:"April 2026",label:"5 months out",tagline:"The vendor-locking month",date:new Date(2026,3,1),color:C.accent,
+    {month:"April 2026",label:"5 months out",date:new Date(2026,3,1),color:C.accent,
       tasks:["Finalize all vendors","Order & send invitations","Start planning honeymoon","Book flights & rental car"]},
     {month:"May 2026",label:"4 months out",date:new Date(2026,4,1),color:C.gold,
       tasks:["Send bridal shower invites","Book honeymoon accommodation"]},
@@ -1681,9 +1682,9 @@ function WeddingTab(){
       tasks:["Final guest count — triggers seating chart, meal count, florals & payment schedule","Bridal Shower — June 27"]},
     {month:"July 2026",label:"2 months out",date:new Date(2026,6,1),color:C.gold,
       tasks:["Submit confirmed headcount to venue and all vendors","Lock in wedding day timeline (ceremony, aperitivo, dinner, disco, cake cutting)","Bachelorette — July 30"]},
-    {month:"August 2026",label:"1 month out",tagline:"Run-of-show & final vendor sync",date:new Date(2026,7,1),color:C.accent,
+    {month:"August 2026",label:"1 month out",date:new Date(2026,7,1),color:C.accent,
       tasks:["Mise en place confirmation due ~August 17 — venue requires this","Final vendor calls: confirm arrival times, load-in windows, contact sheets","Book nails, hair, facials for wedding weekend"]},
-    {month:"September 2026",label:"Wedding month",tagline:"Nicole & Tyler — Sep 17 ✦",date:new Date(2026,8,1),color:C.sage,highlight:true,
+    {month:"September 2026",label:"Wedding month",date:new Date(2026,8,1),color:C.sage,highlight:true,
       tasks:["Arrive in Italy, settle in","Rehearsal dinner","Wedding Day — September 17"]},
   ];
   return(
@@ -1693,17 +1694,15 @@ function WeddingTab(){
         <div style={{position:"absolute",top:-20,right:-20,width:130,height:130,borderRadius:"50%",background:C.sage+"07",pointerEvents:"none"}} />
         <div style={{...serif,fontSize:12,color:C.muted,letterSpacing:"0.22em",marginBottom:5}}>SEPTEMBER 17, 2026</div>
         <h1 style={{...serif,fontSize:36,fontWeight:300,color:C.white,margin:0}}>Nicole &amp; Tyler</h1>
-        <div style={{fontSize:13,color:C.muted,marginTop:4}}>Tuscany, Italy</div>
       </div>
 
       {/* Countdowns */}
       <div style={{display:"flex",gap:10}}>
         {Object.entries(wdates).map(([id,ev])=>(
           <div key={id} style={{...card,flex:1,textAlign:"center"}}>
-            <div style={lbl}>{ev.label}</div>
+            <input value={ev.label} onChange={e=>setWdates({...wdates,[id]:{...ev,label:e.target.value}})} style={{...inp,textAlign:"center",fontSize:10,padding:"4px 8px",marginBottom:6,letterSpacing:"0.1em",textTransform:"uppercase",color:C.muted,background:"transparent",border:`1px solid transparent`,borderRadius:6}} onFocus={e=>e.target.style.border=`1px solid ${C.border}`} onBlur={e=>e.target.style.border="1px solid transparent"} />
             <div style={{...serif,fontSize:46,fontWeight:300,color:colors[id]||C.accent,lineHeight:1.1}}>{daysUntil(new Date(ev.date+"T12:00:00"))}</div>
             <div style={{fontSize:11,color:C.muted,marginTop:3}}>days</div>
-            {ev.location&&<div style={{fontSize:10,color:C.faint,marginTop:2}}>{ev.location}</div>}
             <div style={{marginTop:8}}><input type="date" value={ev.date} onChange={e=>setWdates({...wdates,[id]:{...ev,date:e.target.value}})} style={{...inp,fontSize:10,textAlign:"center"}} /></div>
           </div>
         ))}
@@ -1714,7 +1713,7 @@ function WeddingTab(){
         <div style={{display:"flex",justifyContent:"space-between",alignItems:"flex-start",marginBottom:14}}>
           <div>
             <div style={lbl}>EUR / USD — Live Rate</div>
-            {loading?<div style={{fontSize:16,color:C.faint}}>Fetching...</div>:error?<div style={{fontSize:13,color:C.danger}}>{error}</div>:rate?(<><div style={{...serif,fontSize:40,fontWeight:300,color:rateColor,lineHeight:1}}>{rate.toFixed(4)}</div><div style={{fontSize:12,color:rateColor,marginTop:4}}>{{strong:"Favorable for EUR spend",neutral:"Moderate — watch it",weak:"Weak USD — budget pressure"}[rateStatus]||""}</div></>):<div style={{...serif,fontSize:28,color:C.faint}}>—</div>}
+            {loading?<div style={{fontSize:16,color:C.faint}}>Fetching...</div>:error?<div style={{fontSize:13,color:C.danger}}>{error}</div>:rate?(<><div style={{...serif,fontSize:40,fontWeight:300,color:rateColor,lineHeight:1}}>{rate.toFixed(4)}</div><div style={{fontSize:12,color:rateColor,marginTop:4}}>{{strong:"Favorable — good time to spend EUR",weak:"Unfavorable — USD is weak vs EUR"}[rateStatus]||""}</div></>):<div style={{...serif,fontSize:28,color:C.faint}}>—</div>}
             {fetched&&<div style={{fontSize:10,color:C.faint,marginTop:6}}>Updated {fetched}</div>}
           </div>
           <button onClick={refresh} disabled={loading} style={{padding:"6px 13px",borderRadius:7,background:"transparent",border:`1px solid ${C.border}`,color:C.muted,cursor:"pointer",fontSize:11}}>↻ Refresh</button>
@@ -1748,9 +1747,7 @@ function WeddingTab(){
                     <div style={{width:5,height:5,borderRadius:"50%",background:m.color,flexShrink:0}} />
                     <span style={{fontSize:9,color:m.color,fontWeight:700,letterSpacing:"0.1em",textTransform:"uppercase"}}>{m.label}</span>
                   </div>
-                  <div style={{fontSize:14,fontWeight:isCurrent?600:400,color:isCurrent?C.white:C.text}}>
-                    {m.month}{m.tagline&&<span style={{fontSize:11,color:C.muted,fontWeight:300}}> — {m.tagline}</span>}
-                  </div>
+                  <div style={{fontSize:14,fontWeight:isCurrent?600:400,color:isCurrent?C.white:C.text}}>{m.month}</div>
                 </div>
                 <div style={{fontSize:10,color:isPast?C.faint:isCurrent?m.color:C.faint,flexShrink:0,fontWeight:isCurrent?600:400,paddingTop:2}}>
                   {isPast?"✓":daysLeft<=0?"this month":daysLeft+"d"}
@@ -1762,6 +1759,14 @@ function WeddingTab(){
                     <span style={{color:m.color+(isCurrent?"AA":"55"),flexShrink:0,fontSize:10}}>·</span>{t}
                   </div>
                 ))}
+                {wtasks.filter(t=>t.month===m.month&&!t.done).map(t=>(
+                  <div key={t.id} style={{fontSize:12,color:isCurrent?C.text:C.muted,display:"flex",gap:6,alignItems:"center",justifyContent:"space-between"}}>
+                    <div style={{display:"flex",gap:6,alignItems:"baseline"}}>
+                      <span style={{color:m.color+(isCurrent?"CC":"77"),flexShrink:0,fontSize:10}}>→</span>{t.text}
+                    </div>
+                    <button onClick={()=>setWtasks(wtasks.map(x=>x.id===t.id?{...x,done:true}:x))} style={{background:"none",border:`1px solid ${C.border}`,borderRadius:4,color:C.faint,cursor:"pointer",fontSize:9,padding:"1px 6px",flexShrink:0}}>done</button>
+                  </div>
+                ))}
               </div>
             </div>
           );
@@ -1771,9 +1776,10 @@ function WeddingTab(){
       {/* Tasks */}
       <div style={card}>
         <SHead>Wedding Tasks</SHead>
-        <div style={{display:"grid",gridTemplateColumns:"2fr 1fr 1fr auto",gap:7,marginBottom:14}}>
+        <div style={{display:"grid",gridTemplateColumns:"2fr 1fr 1fr 1fr auto",gap:7,marginBottom:14}}>
           <input value={form.text} onChange={e=>setForm({...form,text:e.target.value})} onKeyDown={e=>e.key==="Enter"&&add()} placeholder="What needs to happen..." style={inp} />
           <select value={form.category} onChange={e=>setForm({...form,category:e.target.value})} style={inp}>{cats.map(c=><option key={c} value={c}>{c}</option>)}</select>
+          <select value={form.month} onChange={e=>setForm({...form,month:e.target.value})} style={inp}><option value="">Month</option>{TIMELINE_MONTHS.map(m=><option key={m} value={m}>{m}</option>)}</select>
           <select value={form.priority} onChange={e=>setForm({...form,priority:e.target.value})} style={inp}><option value="high">High</option><option value="medium">Medium</option><option value="low">Low</option></select>
           <button onClick={add} style={{padding:"9px 16px",borderRadius:8,background:C.accent,color:C.bg,border:"none",cursor:"pointer",fontSize:13,fontWeight:500}}>Add</button>
         </div>
