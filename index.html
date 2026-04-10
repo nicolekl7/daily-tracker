@@ -30,7 +30,7 @@ button{font-family:'DM Sans',sans-serif}
 const { useState, useEffect, useRef, useMemo } = React;
 
 // ─── HELPERS ─────────────────────────────────────────────────────────────────
-const todayStr = () => new Date().toISOString().split("T")[0];
+const todayStr = () => { const d=new Date(); return d.getFullYear()+"-"+String(d.getMonth()+1).padStart(2,"0")+"-"+String(d.getDate()).padStart(2,"0"); };
 const daysUntil = d => Math.max(0, Math.ceil((new Date(d) - new Date()) / 86400000));
 const fmt12 = t => { if(!t) return ""; const [h,m]=t.split(":").map(Number); return ((h%12)||12)+":"+String(m).padStart(2,"0")+(h>=12?" PM":" AM"); };
 
@@ -55,17 +55,6 @@ function sleepDuration(bed, wake) {
   return { h:Math.floor(mins/60), m:mins%60, total:mins, label:Math.floor(mins/60)+"h"+(mins%60>0?" "+(mins%60)+"m":"") };
 }
 
-function getStreak(hid, logs) {
-  let n=0; const d=new Date();
-  while(true){ const k=d.toISOString().split("T")[0]; if(!(logs[k]?.habits||[]).includes(hid))break; n++; d.setDate(d.getDate()-1); }
-  return n;
-}
-
-function getLongest(hid, logs) {
-  let max=0,cur=0;
-  Object.keys(logs).sort().forEach(k=>{ if((logs[k]?.habits||[]).includes(hid)){cur++;max=Math.max(max,cur);}else cur=0; });
-  return max;
-}
 
 function weekStart(ds) {
   const d=new Date(ds+"T12:00:00"), day=d.getDay(), diff=(day===0?-6:1)-day;
@@ -138,7 +127,11 @@ const PHASES = {
       {food:"Dark chocolate (85%+) or pumpkin seeds", nutrient:"Magnesium", reason:"Relieves cramps and muscle tension"},
       {food:"Salmon, sardines, or walnuts", nutrient:"Omega-3", reason:"Lowers prostaglandins — the hormones causing cramps"},
       {food:"Ginger or raspberry leaf tea", nutrient:"Anti-inflammatory", reason:"Natural prostaglandin inhibitor, reduces flow heaviness"},
-    ]
+    ],
+    social:"Energy is inward. Cancel optional plans without guilt. If you need people, keep it small and cozy — close friends only. Large events will drain you faster than usual and you'll resent saying yes.",
+    creativity:"Best for reflection and intake: journaling, reading, mood boards, Pinterest, rewatching comfort shows. Brainstorm freely without pressure to produce. Good dreams and ideas come now — write them down.",
+    shopping:"Avoid shopping if you can. Low estrogen impairs rational decision-making and you're more likely to regret purchases. Make a wishlist and revisit it in follicular when your head is clearer.",
+    focus:"Good for review, wrap-up, and gentle admin: clearing your inbox, reading through old notes, light planning. Not the phase for big launches, new commitments, or major decisions.",
   },
   follicular: {
     label:"Follicular", color:"#7A9B8A", days:"6–13", mode:"lockin",
@@ -155,7 +148,11 @@ const PHASES = {
       {food:"Kimchi, kefir, or sauerkraut", nutrient:"Probiotics", reason:"Gut-estrogen axis: better gut = better hormone metabolism"},
       {food:"Chicken, eggs, or tofu", nutrient:"Lean protein", reason:"Peak muscle-building window — estrogen supports protein synthesis"},
       {food:"Broccoli or cauliflower", nutrient:"DIM", reason:"Helps liver clear excess estrogen efficiently"},
-    ]
+    ],
+    social:"Rising estrogen boosts mood and social confidence. Great time for new connections, first dates, networking, group dinners, and plans you've been putting off. You'll enjoy being out and people will feel your energy.",
+    creativity:"Your highest creative window. Start new projects, try a new craft, learn a new skill, make art, redecorate, begin something you've been meaning to do. Your brain is wired for novelty and absorbs new information quickly.",
+    shopping:"Clearest-headed phase for considered purchases. Good time to buy something you've been researching. Impulse control is at its strongest — you're less likely to overbuy or regret.",
+    focus:"Peak cognitive capacity. Take on complex work, schedule hard conversations, make big decisions, learn new systems. Your brain is operating at its sharpest and most adaptive.",
   },
   ovulatory: {
     label:"Ovulatory", color:"#C9A96E", days:"14–16", mode:"lockin",
@@ -172,7 +169,11 @@ const PHASES = {
       {food:"Blueberries, raspberries, or pomegranate", nutrient:"Antioxidants", reason:"Protect egg quality, reduce oxidative stress"},
       {food:"Cruciferous veg (raw)", nutrient:"DIM", reason:"Clears estrogen peak so progesterone can rise cleanly"},
       {food:"Light, whole-food meals", nutrient:"Digestive ease", reason:"Estrogen peaks cause water retention — keep meals clean"},
-    ]
+    ],
+    social:"Peak magnetism. You're at your most articulate, warm, and charismatic. Best phase for presentations, important conversations, first dates, performances, parties, and networking. People feel drawn to you right now.",
+    creativity:"Bold creative energy — great for collaboration, content creation, putting work out into the world, and performance-based creativity. Confidence fuels creative risk-taking.",
+    shopping:"Higher impulsivity due to peak confidence ('treat yourself' energy is real). Fine for planned purchases you've already decided on. Set a firm budget if you're browsing — ovulatory you is very convincing.",
+    focus:"Best phase for high-stakes tasks: pitches, negotiations, public speaking, launches, client meetings. Peak performance window — front-load anything that requires presence and persuasion.",
   },
   luteal: {
     label:"Luteal", color:"#9B8070", days:"17–28", mode:"gentle",
@@ -189,7 +190,11 @@ const PHASES = {
       {food:"Dark chocolate or pumpkin seeds", nutrient:"Magnesium", reason:"Reduces anxiety, cramps, bloating, improves sleep quality"},
       {food:"Chicken, turkey, or eggs", nutrient:"B6", reason:"Supports progesterone synthesis and serotonin production"},
       {food:"Chamomile or passionflower tea (PM)", nutrient:"GABA support", reason:"Calms nervous system — critical in late luteal when cortisol spikes"},
-    ]
+    ],
+    social:"Social battery shrinks, especially after day 22. Prefer familiar people and quieter settings. It's okay — and healthy — to say no. JOMO over FOMO. Late luteal (day 22+): full homebody mode is completely normal. Don't push yourself to be 'on'.",
+    creativity:"Excellent phase for detail work: editing, organizing, decluttering, finishing half-done projects, list-making, filing, auditing. Analytical precision is high. Not a phase for starting new creative projects — finish what exists.",
+    shopping:"Highest risk phase for impulse buying. Emotional state + comfort-seeking + late-night browsing = purchases you'll regret. Avoid online shopping, especially evenings. If you're adding things to cart, sleep on it. Return items from this phase without guilt.",
+    focus:"Best for deep focused work in familiar territory — refining, editing, auditing, detail-checking work that already exists. Avoid learning complex new systems or starting unfamiliar projects. Finish things.",
   }
 };
 
@@ -213,12 +218,6 @@ const SEV_COLORS = {mild:"#C9A96E",moderate:"#C4856A",severe:"#D97070"};
 const MEAL_SENSITIVITY = ["Dairy","Gluten","Alcohol","Ultra-processed","High sugar","High sodium","Soy","Fried"];
 const DAY_FLAGS = ["High protein","High fiber","Anti-inflammatory","Fermented","Iron-rich","Magnesium-rich","Zinc-rich","Complex carbs","Ate late","Skipped a meal"];
 
-const DEFAULT_HABITS = [
-  {id:"noscreen",   label:"No screen 1hr before bed", emoji:"📵"},
-  {id:"workout",    label:"Workout / movement",        emoji:"🏃"},
-  {id:"outside",    label:"Outside / sunlight",        emoji:"🌤️"},
-  {id:"journaling", label:"Journaling",                emoji:"✍️"},
-];
 
 const BEAUTY_ITEMS = [
   {id:"botox",   label:"Botox",           interval:90, icon:"💉"},
@@ -405,7 +404,7 @@ function SpendLogger({log,upd}){
 // ═══════════════════════════════════════════════════════════════════════════════
 // DASHBOARD
 // ═══════════════════════════════════════════════════════════════════════════════
-function Dashboard({dailyLogs,setDailyLogs,cycleStart,cycleLength,beautyLogs,intervals,allHabits}){
+function Dashboard({dailyLogs,setDailyLogs,cycleStart,cycleLength,beautyLogs,intervals}){
   const phase=getCyclePhase(cycleStart,cycleLength);
   const pd=phase?PHASES[phase.phase]:null;
   const today=dailyLogs[todayStr()]||{};
@@ -483,43 +482,21 @@ function Dashboard({dailyLogs,setDailyLogs,cycleStart,cycleLength,beautyLogs,int
         })}
       </div>
 
-      {/* Cycle advice — main focus */}
+      {/* Cycle — compact dashboard card */}
       {pd?(
         <div style={{borderRadius:14,overflow:"hidden",border:`1px solid ${PHASES[phase.phase].color}33`}}>
-          {/* Top bar */}
-          <div style={{background:PHASES[phase.phase].color+"20",padding:"16px 22px",display:"flex",justifyContent:"space-between",alignItems:"center",borderBottom:`1px solid ${PHASES[phase.phase].color}22`}}>
+          <div style={{background:PHASES[phase.phase].color+"18",padding:"14px 20px",display:"flex",justifyContent:"space-between",alignItems:"center",borderBottom:`1px solid ${PHASES[phase.phase].color}22`}}>
             <div>
-              <div style={{...serif,fontSize:22,color:PHASES[phase.phase].color}}>{pd.label} Phase — Day {phase.day}</div>
-              <div style={{fontSize:12,color:PHASES[phase.phase].color+"88",marginTop:3}}>{pd.days} of cycle</div>
+              <div style={{...serif,fontSize:20,color:PHASES[phase.phase].color}}>{pd.label} Phase — Day {phase.day}</div>
+              <div style={{fontSize:12,color:C.muted,marginTop:3,lineHeight:1.5}}>{pd.modeNote}</div>
             </div>
-            <div style={{padding:"7px 16px",borderRadius:24,fontWeight:600,fontSize:11,letterSpacing:"0.08em",textTransform:"uppercase",background:mode==="lockin"?C.sage+"22":C.gold+"22",border:`1px solid ${mode==="lockin"?C.sage+"77":C.gold+"77"}`,color:mode==="lockin"?C.sage:C.gold}}>
-              {mode==="lockin"?"⚡ Lock In":"🌿 Be Gentle"}
+            <div style={{padding:"6px 14px",borderRadius:20,fontWeight:600,fontSize:11,letterSpacing:"0.08em",textTransform:"uppercase",background:mode==="lockin"?C.sage+"22":C.gold+"22",border:`1px solid ${mode==="lockin"?C.sage+"55":C.gold+"55"}`,color:mode==="lockin"?C.sage:C.gold,flexShrink:0,marginLeft:12}}>
+              {mode==="lockin"?"⚡ Lock In":"🌿 Gentle"}
             </div>
           </div>
-          {/* Advice grid */}
-          <div style={{background:C.card,display:"grid",gridTemplateColumns:"1fr 1fr 1fr",borderBottom:`1px solid ${C.border}`}}>
-            <div style={{padding:"16px 18px",borderRight:`1px solid ${C.border}`}}>
-              <div style={lbl}>Eat today</div>
-              {pd.eat.map(e=><div key={e} style={{fontSize:12,color:C.sage,marginBottom:5,display:"flex",gap:6,alignItems:"flex-start"}}><span style={{flexShrink:0,marginTop:1}}>✓</span><span>{e}</span></div>)}
-            </div>
-            <div style={{padding:"16px 18px",borderRight:`1px solid ${C.border}`}}>
-              <div style={lbl}>Avoid</div>
-              {pd.avoid.map(e=><div key={e} style={{fontSize:12,color:C.danger,marginBottom:5,display:"flex",gap:6,alignItems:"flex-start"}}><span style={{flexShrink:0,marginTop:1}}>✗</span><span>{e}</span></div>)}
-            </div>
-            <div style={{padding:"16px 18px"}}>
-              <div style={lbl}>Move</div>
-              <div style={{fontSize:12,color:C.text,marginBottom:12,lineHeight:1.5}}>{pd.move}</div>
-              <div style={lbl}>Self care</div>
-              <div style={{fontSize:12,color:C.muted,lineHeight:1.5}}>{pd.selfcare}</div>
-            </div>
-          </div>
-          {/* Why + skin + med note */}
-          <div style={{background:C.surface,padding:"12px 22px",display:"grid",gridTemplateColumns:"1fr 1fr",gap:16}}>
-            <div>
-              <div style={lbl}>Skin</div>
-              <div style={{fontSize:12,color:C.muted}}>{pd.skin}</div>
-            </div>
-            <div style={{padding:"8px 14px",background:PHASES[phase.phase].color+"12",borderRadius:8}}>
+          <div style={{background:C.card,padding:"12px 20px",display:"grid",gridTemplateColumns:"1fr 1fr",gap:14}}>
+            <div><div style={lbl}>Skin</div><div style={{fontSize:12,color:C.muted,lineHeight:1.5}}>{pd.skin}</div></div>
+            <div style={{padding:"8px 12px",background:PHASES[phase.phase].color+"12",borderRadius:8}}>
               <div style={lbl}>Vyvanse / Adderall</div>
               <div style={{fontSize:12,color:phase.phase==="luteal"?C.danger:C.text,lineHeight:1.5}}>{pd.vyvanse}</div>
             </div>
@@ -647,7 +624,7 @@ function Dashboard({dailyLogs,setDailyLogs,cycleStart,cycleLength,beautyLogs,int
 // ═══════════════════════════════════════════════════════════════════════════════
 // DAILY LOG
 // ═══════════════════════════════════════════════════════════════════════════════
-function DailyLog({logs,setLogs,allHabits,cycleStart,cycleLength}){
+function DailyLog({logs,setLogs,cycleStart,cycleLength}){
   const [date,setDate]=useState(todayStr());
   const [sheetsUrl,setSheetsUrl]=useLS("nm_sheets_url","");
   const [syncing,setSyncing]=useState(false);
@@ -833,11 +810,6 @@ function DailyLog({logs,setLogs,allHabits,cycleStart,cycleLength}){
       </div>
 
       {/* Habits */}
-      <div style={card}>
-        <SHead>Habits</SHead>
-        <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:6}}>{allHabits.map(h=><Check key={h.id} label={h.emoji+" "+h.label} color={C.sage} checked={(log.habits||[]).includes(h.id)} onChange={e=>updArr("habits",h.id,e.target.checked)} />)}</div>
-      </div>
-
       {/* Pin a note */}
       <div style={{...card,borderLeft:`3px solid ${C.gold}`}}>
         <SHead>📌 Pin a Note</SHead>
@@ -1371,7 +1343,14 @@ function CycleTab({dailyLogs}){
   const daysLeft=phase?(phase.phase==="menstrual"?5-phase.day:phase.phase==="follicular"?13-phase.day:phase.phase==="ovulatory"?16-phase.day:cycleLength-phase.day):null;
   const phaseMap=[{p:"menstrual",days:5},{p:"follicular",days:8},{p:"ovulatory",days:3},{p:"luteal",days:cycleLength-16}];
 
-  // Sleep x mood correlation from daily logs
+  const getPhaseForDate=ds=>{
+    if(!cycleStart)return null;
+    const el=Math.floor((new Date(ds+"T12:00:00")-new Date(cycleStart+"T12:00:00"))/86400000);
+    if(el<0)return null;
+    const day=(el%cycleLength)+1;
+    return day<=5?"menstrual":day<=13?"follicular":day<=16?"ovulatory":"luteal";
+  };
+
   const corrData=Object.keys(dailyLogs).sort().slice(-12).map(k=>{
     const v=dailyLogs[k];
     return{label:new Date(k+"T12:00:00").toLocaleDateString("en-US",{month:"numeric",day:"numeric"}),values:{sleep:v?.ouraSleep?Math.round(v.ouraSleep/10):null,mood:v?.mood||null}};
@@ -1379,7 +1358,7 @@ function CycleTab({dailyLogs}){
 
   return(
     <div style={{display:"flex",flexDirection:"column",gap:18}}>
-      <PTitle sub="Cycle intelligence + body correlations">Cycle</PTitle>
+      <PTitle sub="Cycle intelligence + lifestyle guidance">Cycle</PTitle>
 
       <div style={card}>
         <SHead>Setup</SHead>
@@ -1391,14 +1370,16 @@ function CycleTab({dailyLogs}){
 
       {!cycleStart&&<div style={{...card,textAlign:"center",padding:40}}><div style={{fontSize:30,marginBottom:10}}>🌙</div><div style={{color:C.muted}}>Enter your last period start date above.</div></div>}
 
-      {phase&&pd&&(
+      {phase&&pd&&cycleStart&&(
         <>
+          {/* Current phase */}
           <div style={{...card,borderLeft:`3px solid ${PHASES[phase.phase].color}`}}>
             <div style={{display:"flex",justifyContent:"space-between",alignItems:"flex-start",marginBottom:14}}>
-              <div><h2 style={{...serif,fontSize:24,fontWeight:400,color:PHASES[phase.phase].color,margin:0}}>{pd.label} Phase</h2><div style={{fontSize:12,color:C.muted,marginTop:4}}>Day {phase.day} · ~{Math.max(0,daysLeft)} days to next phase</div></div>
+              <div><h2 style={{...serif,fontSize:24,fontWeight:400,color:PHASES[phase.phase].color,margin:0}}>{pd.label} Phase</h2><div style={{fontSize:12,color:C.muted,marginTop:4}}>Day {phase.day} · {pd.days} of cycle · ~{Math.max(0,daysLeft)} days to next phase</div></div>
               <div style={{textAlign:"right"}}><div style={{...serif,fontSize:40,fontWeight:300,color:PHASES[phase.phase].color,lineHeight:1}}>{phase.day}</div><div style={{fontSize:10,color:C.muted}}>of {cycleLength}</div></div>
             </div>
-            <div style={{height:5,background:C.border,borderRadius:3,marginBottom:18,overflow:"hidden"}}><div style={{height:"100%",width:((phase.day/cycleLength)*100)+"%",background:PHASES[phase.phase].color,borderRadius:3}} /></div>
+            <div style={{height:5,background:C.border,borderRadius:3,marginBottom:16,overflow:"hidden"}}><div style={{height:"100%",width:((phase.day/cycleLength)*100)+"%",background:PHASES[phase.phase].color,borderRadius:3}} /></div>
+            <div style={{fontSize:12,color:C.muted,lineHeight:1.6,marginBottom:14,padding:"10px 14px",background:PHASES[phase.phase].color+"0D",borderRadius:8}}>{pd.modeNote}</div>
             <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:16,marginBottom:14}}>
               <div><div style={lbl}>Eat</div>{pd.eat.map(e=><div key={e} style={{fontSize:12,color:C.sage,marginBottom:5}}>✓ {e}</div>)}</div>
               <div><div style={lbl}>Avoid</div>{pd.avoid.map(e=><div key={e} style={{fontSize:12,color:C.danger,marginBottom:5}}>✗ {e}</div>)}</div>
@@ -1406,13 +1387,116 @@ function CycleTab({dailyLogs}){
             <Divider />
             <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:14,marginBottom:14}}>
               <div><div style={lbl}>Movement</div><div style={{fontSize:12,lineHeight:1.5}}>{pd.move}</div></div>
-              <div><div style={lbl}>Self Care</div><div style={{fontSize:12,lineHeight:1.5}}>{pd.selfcare}</div></div>
+              <div><div style={lbl}>Self Care</div><div style={{fontSize:12,lineHeight:1.5,color:C.muted}}>{pd.selfcare}</div></div>
             </div>
             <div style={{padding:"11px 14px",background:PHASES[phase.phase].color+"15",borderRadius:9,marginBottom:10}}>
               <div style={lbl}>Vyvanse / Adderall</div>
               <div style={{fontSize:12,lineHeight:1.6,color:phase.phase==="luteal"?C.danger:C.text}}>{pd.vyvanse}</div>
             </div>
             <div style={{padding:"9px 13px",background:C.surface,borderRadius:8}}><div style={lbl}>Expected this phase</div><div style={{display:"flex",flexWrap:"wrap",gap:5,marginTop:4}}>{pd.expectedSymptoms.map(s=><span key={s} style={{fontSize:10,padding:"2px 8px",borderRadius:10,background:PHASES[phase.phase].color+"15",color:PHASES[phase.phase].color+"CC"}}>{s}</span>)}</div></div>
+          </div>
+
+          {/* Phase calendar */}
+          <div style={card}>
+            <SHead right={<div style={{display:"flex",gap:10,flexWrap:"wrap"}}>
+              {[["menstrual","Men"],["follicular","Fol"],["ovulatory","Ovu"],["luteal","Lut"]].map(([p,a])=>(
+                <div key={p} style={{display:"flex",alignItems:"center",gap:4,fontSize:10,color:PHASES[p].color}}>
+                  <div style={{width:8,height:8,borderRadius:2,background:PHASES[p].color+"88"}} />{a}
+                </div>
+              ))}
+            </div>}>Phase Calendar</SHead>
+            <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:20}}>
+              {[0,1].map(offset=>{
+                const now=new Date();
+                const yr=now.getFullYear(),moIdx=now.getMonth()+offset;
+                const firstOfMonth=new Date(yr,moIdx,1);
+                const firstDay=firstOfMonth.getDay();
+                const daysInMonth=new Date(yr,moIdx+1,0).getDate();
+                const monthName=firstOfMonth.toLocaleDateString("en-US",{month:"long",year:"numeric"});
+                const today=todayStr();
+                return(
+                  <div key={offset}>
+                    <div style={{fontSize:12,fontWeight:500,color:C.white,marginBottom:8,textAlign:"center"}}>{monthName}</div>
+                    <div style={{display:"grid",gridTemplateColumns:"repeat(7,1fr)",gap:2,marginBottom:3}}>
+                      {["S","M","T","W","T","F","S"].map((d,i)=><div key={i} style={{textAlign:"center",fontSize:8,color:C.faint}}>{d}</div>)}
+                    </div>
+                    <div style={{display:"grid",gridTemplateColumns:"repeat(7,1fr)",gap:2}}>
+                      {Array.from({length:firstDay},(_,i)=><div key={"e"+i}/>)}
+                      {Array.from({length:daysInMonth},(_,i)=>{
+                        const day=i+1;
+                        const d2=new Date(yr,moIdx,day);
+                        const ds=d2.getFullYear()+"-"+String(d2.getMonth()+1).padStart(2,"0")+"-"+String(d2.getDate()).padStart(2,"0");
+                        const p=getPhaseForDate(ds);
+                        const col=p?PHASES[p].color:null;
+                        const isToday=ds===today;
+                        return(
+                          <div key={day} title={p?PHASES[p].label+" Day "+ds:""} style={{
+                            aspectRatio:"1",borderRadius:3,
+                            background:col?col+(isToday?"EE":"2A"):"transparent",
+                            outline:isToday?`2px solid ${col}`:isToday?"2px solid "+C.muted:"none",
+                            display:"flex",alignItems:"center",justifyContent:"center",
+                            fontSize:8,fontWeight:isToday?700:400,
+                            color:isToday?"#0A0908":col?col:C.faint
+                          }}>{day}</div>
+                        );
+                      })}
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+
+          {/* 8-week outlook */}
+          <div style={card}>
+            <SHead>8-Week Phase Outlook</SHead>
+            {Array.from({length:8},(_,wi)=>{
+              const startD=new Date();startD.setHours(0,0,0,0);
+              const dow=startD.getDay();startD.setDate(startD.getDate()+(dow===0?-6:1-dow)+(wi*7));
+              const endD=new Date(startD);endD.setDate(endD.getDate()+6);
+              const phaseCounts={};
+              for(const d=new Date(startD);d<=endD;d.setDate(d.getDate()+1)){
+                const ds=d.getFullYear()+"-"+String(d.getMonth()+1).padStart(2,"0")+"-"+String(d.getDate()).padStart(2,"0");
+                const p=getPhaseForDate(ds);if(p)phaseCounts[p]=(phaseCounts[p]||0)+1;
+              }
+              const wLabel=startD.toLocaleDateString("en-US",{month:"short",day:"numeric"})+" – "+endD.toLocaleDateString("en-US",{month:"short",day:"numeric"});
+              const isCurrent=wi===0;
+              const phases=Object.entries(phaseCounts);
+              return(
+                <div key={wi} style={{display:"flex",alignItems:"center",gap:10,padding:"7px 0",borderBottom:wi<7?`1px solid ${C.border}`:"none"}}>
+                  <div style={{width:88,fontSize:10,color:isCurrent?C.white:C.muted,fontWeight:isCurrent?600:400,flexShrink:0}}>{wLabel}</div>
+                  <div style={{flex:1,display:"flex",borderRadius:4,overflow:"hidden",height:18}}>
+                    {phases.map(([p,count])=>(
+                      <div key={p} style={{flex:count,background:PHASES[p].color+(isCurrent?"CC":"44"),display:"flex",alignItems:"center",justifyContent:"center",fontSize:8,color:isCurrent?"#0A0908":PHASES[p].color,fontWeight:600,overflow:"hidden",whiteSpace:"nowrap"}}>
+                        {count>=2?PHASES[p].label.slice(0,3).toUpperCase():""}
+                      </div>
+                    ))}
+                  </div>
+                  <div style={{fontSize:10,color:isCurrent?C.text:C.muted,flexShrink:0,textAlign:"right",maxWidth:90}}>
+                    {phases.map(([p])=>PHASES[p].label).join(" + ")}
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+
+          {/* Lifestyle guidance */}
+          <div style={card}>
+            <SHead right={<span style={{fontSize:11,color:C.faint}}>same through {pd.label} phase</span>}>Lifestyle — {pd.label}</SHead>
+            {[
+              {icon:"👥",label:"Social",key:"social"},
+              {icon:"✦",label:"Creativity & Crafts",key:"creativity"},
+              {icon:"🛍",label:"Shopping",key:"shopping"},
+              {icon:"🧠",label:"Focus & Work",key:"focus"},
+            ].map(({icon,label,key},i,arr)=>(
+              <div key={key} style={{padding:"12px 0",borderBottom:i<arr.length-1?`1px solid ${C.border}`:"none",display:"flex",gap:12,alignItems:"flex-start"}}>
+                <div style={{fontSize:16,flexShrink:0,marginTop:2}}>{icon}</div>
+                <div>
+                  <div style={{fontSize:10,fontWeight:600,color:C.text,marginBottom:5,letterSpacing:"0.08em",textTransform:"uppercase"}}>{label}</div>
+                  <div style={{fontSize:12,color:C.muted,lineHeight:1.7}}>{pd[key]}</div>
+                </div>
+              </div>
+            ))}
           </div>
 
           {/* Nutrition deep dive */}
@@ -1437,7 +1521,6 @@ function CycleTab({dailyLogs}){
         </>
       )}
 
-      {/* Sleep × mood correlation */}
       {corrData.length>=3&&(
         <div style={card}>
           <SHead>Sleep Score × Mood</SHead>
@@ -1449,55 +1532,6 @@ function CycleTab({dailyLogs}){
           </div>
         </div>
       )}
-    </div>
-  );
-}
-
-// ═══════════════════════════════════════════════════════════════════════════════
-// HABITS
-// ═══════════════════════════════════════════════════════════════════════════════
-function HabitsTab({logs,setLogs,customHabits,setCustomHabits}){
-  const [newLabel,setNewLabel]=useState("");
-  const [newEmoji,setNewEmoji]=useState("⭐");
-  const today=todayStr();
-  const allHabits=[...DEFAULT_HABITS,...customHabits];
-  const last28=Array.from({length:28},(_,i)=>{const d=new Date();d.setDate(d.getDate()-(27-i));return d.toISOString().split("T")[0];});
-  const togHabit=(hid,date)=>{const log=logs[date]||{};const habits=log.habits||[];const has=habits.includes(hid);setLogs({...logs,[date]:{...log,habits:has?habits.filter(h=>h!==hid):[...habits,hid]}});};
-  const addHabit=()=>{if(!newLabel.trim())return;setCustomHabits([...customHabits,{id:"c_"+Date.now(),label:newLabel.trim(),emoji:newEmoji}]);setNewLabel("");setNewEmoji("⭐");};
-  return(
-    <div style={{display:"flex",flexDirection:"column",gap:18}}>
-      <PTitle sub="Streaks and 28-day history">Habits</PTitle>
-      <div style={card}>
-        <SHead>Today — {today}</SHead>
-        <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:6}}>{allHabits.map(h=><Check key={h.id} label={h.emoji+" "+h.label} color={C.sage} checked={(logs[today]?.habits||[]).includes(h.id)} onChange={()=>togHabit(h.id,today)} />)}</div>
-      </div>
-      <div style={card}>
-        <SHead>Streaks</SHead>
-        {allHabits.map(h=>{const streak=getStreak(h.id,logs);const longest=getLongest(h.id,logs);const pct=longest>0?(streak/longest)*100:0;return(<div key={h.id} style={{padding:"11px 0",borderBottom:`1px solid ${C.border}`}}><div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:7}}><div style={{display:"flex",alignItems:"center",gap:8}}><span style={{fontSize:15}}>{h.emoji}</span><span style={{fontSize:13}}>{h.label}</span></div><div style={{display:"flex",gap:14,alignItems:"center"}}><div style={{textAlign:"center"}}><div style={{...serif,fontSize:20,color:streak>=7?C.sage:streak>=3?C.gold:C.muted,lineHeight:1}}>{streak}</div><div style={{fontSize:9,color:C.faint}}>current</div></div><div style={{textAlign:"center"}}><div style={{...serif,fontSize:20,color:C.muted,lineHeight:1}}>{longest}</div><div style={{fontSize:9,color:C.faint}}>best</div></div></div></div><div style={{height:3,background:C.border,borderRadius:2,overflow:"hidden"}}><div style={{height:"100%",width:pct+"%",background:streak>=7?C.sage:C.gold}} /></div></div>);})}
-      </div>
-      <div style={card}>
-        <SHead>28-Day History</SHead>
-        <div style={{overflowX:"auto"}}><div style={{minWidth:520}}>
-          <div style={{display:"flex",marginBottom:4,paddingLeft:148}}>{last28.map((d,i)=><div key={d} style={{flex:1,textAlign:"center",fontSize:8,color:C.faint}}>{i%4===0?new Date(d+"T12:00:00").getDate():""}</div>)}</div>
-          {allHabits.map(h=>(
-            <div key={h.id} style={{display:"flex",alignItems:"center",marginBottom:5}}>
-              <div style={{width:145,fontSize:11,color:C.muted,whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis",paddingRight:8}}>{h.emoji} {h.label}</div>
-              <div style={{display:"flex",gap:2,flex:1}}>
-                {last28.map(d=>{const done=(logs[d]?.habits||[]).includes(h.id);return(<div key={d} title={d} onClick={()=>togHabit(h.id,d)} style={{flex:1,aspectRatio:"1",borderRadius:3,cursor:"pointer",background:done?C.sage+"BB":C.border,border:d===today?`1px solid ${C.sage}`:"1px solid transparent",transition:"all 0.1s"}} />);})}
-              </div>
-            </div>
-          ))}
-        </div></div>
-      </div>
-      <div style={card}>
-        <SHead>Add Custom Habit</SHead>
-        <div style={{display:"flex",gap:8}}>
-          <input value={newEmoji} onChange={e=>setNewEmoji(e.target.value)} placeholder="🌿" style={{...inp,width:55}} />
-          <input value={newLabel} onChange={e=>setNewLabel(e.target.value)} onKeyDown={e=>e.key==="Enter"&&addHabit()} placeholder="e.g. 10-min walk, no alcohol..." style={{...inp,flex:1}} />
-          <button onClick={addHabit} style={{padding:"9px 16px",borderRadius:8,background:C.accent,color:"#0A0908",border:"none",cursor:"pointer",fontSize:13,fontWeight:500,whiteSpace:"nowrap"}}>+ Add</button>
-        </div>
-        {customHabits.length>0&&<div style={{marginTop:12}}>{customHabits.map(h=><div key={h.id} style={{display:"flex",justifyContent:"space-between",alignItems:"center",padding:"6px 0",borderBottom:`1px solid ${C.border}`}}><span style={{fontSize:13}}>{h.emoji} {h.label}</span><button onClick={()=>setCustomHabits(customHabits.filter(c=>c.id!==h.id))} style={{background:"none",border:"none",color:C.faint,cursor:"pointer",fontSize:16}}>×</button></div>)}</div>}
-      </div>
     </div>
   );
 }
@@ -1809,7 +1843,6 @@ const TABS=[
   {id:"daily",label:"Daily Log"},
   {id:"hair",label:"Hair & Beauty"},
   {id:"cycle",label:"Cycle"},
-  {id:"habits",label:"Habits"},
   {id:"spend",label:"Spend"},
   {id:"wedding",label:"Wedding"},
 ];
@@ -1821,8 +1854,6 @@ function App(){
   const [cycleLength]=useLS("nm_cycle_length",28);
   const [beautyLogs,setBeautyLogs]=useLS("nm_beauty",{});
   const [intervals,setIntervals]=useLS("nm_beauty_intervals",{});
-  const [customHabits,setCustomHabits]=useLS("nm_custom_habits",[]);
-  const allHabits=[...DEFAULT_HABITS,...customHabits];
   const [showData,setShowData]=useState(false);
   const [showSaved,setShowSaved]=useState(false);
   const savedSkip=useRef(true);
@@ -1861,12 +1892,11 @@ function App(){
       {showData&&<DataPanel onClose={()=>setShowData(false)} />}
       <div style={{position:"relative",zIndex:1,padding:"26px 20px 80px"}}>
         <div style={{maxWidth:960,margin:"0 auto"}}>
-          {tab==="dashboard"&&<Dashboard dailyLogs={dailyLogs} setDailyLogs={setDailyLogs} cycleStart={cycleStart} cycleLength={cycleLength} beautyLogs={beautyLogs} intervals={intervals} allHabits={allHabits} />}
-          {tab==="daily"&&<DailyLog logs={dailyLogs} setLogs={setDailyLogs} allHabits={allHabits} cycleStart={cycleStart} cycleLength={cycleLength} />}
+          {tab==="dashboard"&&<Dashboard dailyLogs={dailyLogs} setDailyLogs={setDailyLogs} cycleStart={cycleStart} cycleLength={cycleLength} beautyLogs={beautyLogs} intervals={intervals} />}
+          {tab==="daily"&&<DailyLog logs={dailyLogs} setLogs={setDailyLogs} cycleStart={cycleStart} cycleLength={cycleLength} />}
           {tab==="skin"&&<SkinTab logs={dailyLogs} setLogs={setDailyLogs} cycleStart={cycleStart} cycleLength={cycleLength} />}
           {tab==="hair"&&<HairBeautyTab dailyLogs={dailyLogs} beautyLogs={beautyLogs} setBeautyLogs={setBeautyLogs} intervals={intervals} setIntervals={setIntervals} />}
           {tab==="cycle"&&<CycleTab dailyLogs={dailyLogs} />}
-          {tab==="habits"&&<HabitsTab logs={dailyLogs} setLogs={setDailyLogs} customHabits={customHabits} setCustomHabits={setCustomHabits} />}
           {tab==="spend"&&<SpendTab logs={dailyLogs} />}
           {tab==="wedding"&&<WeddingTab />}
         </div>
