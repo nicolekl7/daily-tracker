@@ -1077,46 +1077,49 @@ function SkinTab({logs,setLogs,cycleStart,cycleLength}){
         <button onClick={()=>swapPhotos("skinPhotoFront","skinPhotoRight")} title="Swap Front ↔ Right" style={{flexShrink:0,width:26,height:26,borderRadius:"50%",background:C.surface,border:`1px solid ${C.border}`,color:C.muted,cursor:"pointer",fontSize:13,display:"flex",alignItems:"center",justifyContent:"center",padding:0}}>⇄</button>
         <div style={{flex:1}}>{mkPhotoSlot("skinPhotoRight",fileRefRight,"Right →")}</div>
       </div>
-      {(log.skinPhotoLeft||log.skinPhotoFront||log.skinPhoto||log.skinPhotoRight)&&(
-        <button
-          onClick={()=>{setSkinSubmitted(true);setTimeout(()=>setSkinSubmitted(false),3000);}}
-          style={{width:"100%",padding:"11px",borderRadius:9,cursor:"pointer",fontSize:13,fontWeight:500,transition:"all 0.2s",
-            background:skinSubmitted?C.sage+"22":"transparent",
-            border:`1px solid ${skinSubmitted?C.sage:C.border}`,
-            color:skinSubmitted?C.sage:C.muted}}>
-          {skinSubmitted?"Skin logged ✓  "+date:"Save skin entry"}
-        </button>
-      )}
+      <button
+        onClick={()=>{setSkinSubmitted(true);setTimeout(()=>setSkinSubmitted(false),3000);}}
+        style={{width:"100%",padding:"11px",borderRadius:9,cursor:"pointer",fontSize:13,fontWeight:500,transition:"all 0.2s",
+          background:skinSubmitted?C.sage+"22":"transparent",
+          border:`1px solid ${skinSubmitted?C.sage:C.border}`,
+          color:skinSubmitted?C.sage:C.muted}}>
+        {skinSubmitted?"Skin logged ✓  "+date:"Save skin entry"}
+      </button>
 
-      {/* Skincare — PM last night / AM this morning */}
-      <div style={card}>
-        <SHead>Skincare</SHead>
-        <div style={{marginBottom:14,padding:"12px 14px",background:C.gold+"0C",borderRadius:10,border:`1px solid ${C.gold}22`}}>
-          <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:10}}>
-            <div style={{...lbl,margin:0,color:C.gold}}>PM — Last Night</div>
-            <div style={{fontSize:10,color:C.faint}}>{prevDateStr}</div>
+      {/* Skincare — today: PM=last night / AM=this morning; past days: both save to that date */}
+      {(()=>{
+        const isToday=date===todayStr();
+        const pmDate=isToday?prevDateStr:date;
+        const pmLabel=isToday?"PM — Last Night":"PM";
+        const amLabel=isToday?"AM — This Morning":"AM";
+        const pmLog=logs[pmDate]||{};const pmSkin=pmLog.skincare||{};
+        const updPM=p=>checked=>{const l=pmSkin.PM||[];setLogs({...logs,[pmDate]:{...pmLog,skincare:{...pmSkin,PM:checked?[...l,p]:l.filter(x=>x!==p)}}});};
+        const updAM=p=>checked=>{const c=log.skincare||{};const l=c.AM||[];upd("skincare",{...c,AM:checked?[...l,p]:l.filter(x=>x!==p)});};
+        return(
+          <div style={card}>
+            <SHead>Skincare</SHead>
+            <div style={{marginBottom:14,padding:"12px 14px",background:C.gold+"0C",borderRadius:10,border:`1px solid ${C.gold}22`}}>
+              <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:10}}>
+                <div style={{...lbl,margin:0,color:C.gold}}>{pmLabel}</div>
+                <div style={{fontSize:10,color:C.faint}}>{pmDate}</div>
+              </div>
+              <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:5}}>
+                {SKINCARE_PM.map(p=><Check key={p} label={p} color={C.gold} checked={(pmSkin.PM||[]).includes(p)} onChange={e=>updPM(p)(e.target.checked)} />)}
+              </div>
+            </div>
+            <div style={{marginBottom:12,padding:"12px 14px",background:C.sage+"0C",borderRadius:10,border:`1px solid ${C.sage}22`}}>
+              <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:10}}>
+                <div style={{...lbl,margin:0,color:C.sage}}>{amLabel}</div>
+                <div style={{fontSize:10,color:C.faint}}>{date}</div>
+              </div>
+              <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:5}}>
+                {SKINCARE_AM.map(p=><Check key={p} label={p} color={C.sage} checked={((log.skincare||{}).AM||[]).includes(p)} onChange={e=>updAM(p)(e.target.checked)} />)}
+              </div>
+            </div>
+            <div><label style={lbl}>Skin Notes</label><textarea rows={2} value={log.skinNotes||""} onChange={e=>upd("skinNotes",e.target.value)} placeholder="Redness, texture, breakouts..." style={{...inp,resize:"none"}} /></div>
           </div>
-          <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:5}}>
-            {SKINCARE_PM.map(p=>{
-              const pl=logs[prevDateStr]||{};const pc=pl.skincare||{};const checked=(pc.PM||[]).includes(p);
-              return <Check key={p} label={p} color={C.gold} checked={checked} onChange={e=>{const c=pc;const l=c.PM||[];setLogs({...logs,[prevDateStr]:{...pl,skincare:{...c,PM:e.target.checked?[...l,p]:l.filter(x=>x!==p)}}});}} />;
-            })}
-          </div>
-        </div>
-        <div style={{marginBottom:12,padding:"12px 14px",background:C.sage+"0C",borderRadius:10,border:`1px solid ${C.sage}22`}}>
-          <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:10}}>
-            <div style={{...lbl,margin:0,color:C.sage}}>AM — This Morning</div>
-            <div style={{fontSize:10,color:C.faint}}>{date}</div>
-          </div>
-          <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:5}}>
-            {SKINCARE_AM.map(p=>{
-              const checked=((log.skincare||{}).AM||[]).includes(p);
-              return <Check key={p} label={p} color={C.sage} checked={checked} onChange={e=>{const c=log.skincare||{};const l=c.AM||[];upd("skincare",{...c,AM:e.target.checked?[...l,p]:l.filter(x=>x!==p)});}} />;
-            })}
-          </div>
-        </div>
-        <div><label style={lbl}>Skin Notes</label><textarea rows={2} value={log.skinNotes||""} onChange={e=>upd("skinNotes",e.target.value)} placeholder="Redness, texture, breakouts..." style={{...inp,resize:"none"}} /></div>
-      </div>
+        );
+      })()}
 
       {/* Rating + observations */}
       <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:14}}>
