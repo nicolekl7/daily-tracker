@@ -17,16 +17,16 @@
 <script src="https://cdnjs.cloudflare.com/ajax/libs/babel-standalone/7.23.2/babel.min.js"></script>
 <style>
 *,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
-html,body,#root{background:#0A0908;min-height:100vh}
+html,body,#root{background:var(--bg,#0A0908);min-height:100vh;transition:background 0.4s,color 0.4s}
 ::-webkit-scrollbar{width:4px;height:4px}
-::-webkit-scrollbar-track{background:#131210}
-::-webkit-scrollbar-thumb{background:#2D2920;border-radius:2px}
-input[type=range]{-webkit-appearance:none;appearance:none;background:#2D2920;height:4px;border-radius:2px;outline:none;padding:0!important;border:none!important;width:100%;cursor:pointer;display:block}
+::-webkit-scrollbar-track{background:var(--surface,#131210)}
+::-webkit-scrollbar-thumb{background:var(--faint,#2D2920);border-radius:2px}
+input[type=range]{-webkit-appearance:none;appearance:none;background:var(--faint,#2D2920);height:4px;border-radius:2px;outline:none;padding:0!important;border:none!important;width:100%;cursor:pointer;display:block}
 input[type=range]::-webkit-slider-thumb{-webkit-appearance:none;width:14px;height:14px;border-radius:50%;background:#C4856A;cursor:pointer}
 input[type=checkbox]{cursor:pointer;accent-color:#C4856A}
 input:focus,textarea:focus,select:focus{outline:none;border-color:#C4856A!important}
 input[type=date]::-webkit-calendar-picker-indicator{filter:invert(0.4) sepia(0.3);cursor:pointer}
-select option{background:#1A1814;color:#EDE9E1}
+select option{background:var(--card,#1A1814);color:var(--text,#EDE9E1)}
 textarea{resize:vertical;font-family:'DM Sans',sans-serif}
 button{font-family:'DM Sans',sans-serif}
 </style>
@@ -237,46 +237,52 @@ const SPEND_CATS = ["Food & Dining","Beauty & Self-care","Fashion","Wellness & F
 const CAT_COLORS = {"Food & Dining":"#C9A96E","Beauty & Self-care":"#C4856A","Fashion":"#9B8070","Wellness & Fitness":"#7A9B8A","Entertainment":"#8A9BAA","Travel":"#A07A9B","Wedding":"#7A9B8A","Subscriptions":"#6A7A8A","Home":"#8A9B7A","Other":"#5A5550"};
 
 // ─── DESIGN ──────────────────────────────────────────────────────────────────
-const C = {bg:"#0A0908",surface:"#131210",card:"#1A1814",border:"#272420",text:"#EDE9E1",muted:"#7A7165",faint:"#3D3830",accent:"#C4856A",gold:"#C9A96E",sage:"#7A9B8A",danger:"#D97070",white:"#F7F4EF"};
+const DARK_C  = {bg:"#0A0908",surface:"#131210",card:"#1A1814",border:"#272420",text:"#EDE9E1",muted:"#7A7165",faint:"#3D3830",accent:"#C4856A",gold:"#C9A96E",sage:"#7A9B8A",danger:"#D97070",white:"#F7F4EF"};
+const LIGHT_C = {bg:"#FAF7F2",surface:"#F0E8DD",card:"#FFFDFB",border:"#DDD4C8",text:"#1C1714",muted:"#8A7A6E",faint:"#D4C8BC",accent:"#C4856A",gold:"#A07830",sage:"#527A68",danger:"#C44040",white:"#FFFDFB"};
 const serif = {fontFamily:"'Cormorant Garamond', serif"};
-const card = {background:C.card,border:`1px solid ${C.border}`,borderRadius:14,padding:"20px 22px"};
-const inp = {background:C.surface,color:C.text,border:`1px solid ${C.border}`,borderRadius:8,padding:"9px 13px",fontFamily:"'DM Sans', sans-serif",fontSize:13,width:"100%",transition:"border-color 0.2s"};
-const lbl = {fontSize:10,letterSpacing:"0.12em",textTransform:"uppercase",color:C.muted,marginBottom:6,display:"block",fontFamily:"'DM Sans', sans-serif",fontWeight:500};
+const ThemeCtx = React.createContext(null);
 
 // ─── SHARED COMPONENTS ───────────────────────────────────────────────────────
-function Divider(){return <div style={{height:1,background:C.border,margin:"14px 0"}} />;}
-function PTitle({children,sub}){return(<div style={{marginBottom:22}}><h1 style={{...serif,fontSize:28,fontWeight:300,color:C.white,margin:0}}>{children}</h1>{sub&&<div style={{fontSize:12,color:C.muted,marginTop:5}}>{sub}</div>}</div>);}
-function SHead({children,right}){return <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:14}}><div style={{...serif,fontSize:17,fontWeight:400,color:C.white}}>{children}</div>{right&&<div>{right}</div>}</div>;}
+function Divider(){const {C}=React.useContext(ThemeCtx);return <div style={{height:1,background:C.border,margin:"14px 0"}} />;}
+function PTitle({children,sub}){const {C}=React.useContext(ThemeCtx);return(<div style={{marginBottom:22}}><h1 style={{...serif,fontSize:28,fontWeight:300,color:C.white,margin:0}}>{children}</h1>{sub&&<div style={{fontSize:12,color:C.muted,marginTop:5}}>{sub}</div>}</div>);}
+function SHead({children,right}){const {C}=React.useContext(ThemeCtx);return <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:14}}><div style={{...serif,fontSize:17,fontWeight:400,color:C.white}}>{children}</div>{right&&<div>{right}</div>}</div>;}
 
-function Slider({label,value,onChange,color=C.accent,emoji=""}){
+function Slider({label,value,onChange,color,emoji=""}){
+  const {C,lbl}=React.useContext(ThemeCtx);
+  const sliderColor=color??C.accent;
   return(
     <div style={{marginBottom:16}}>
       <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:7}}>
         <span style={lbl}>{emoji} {label}</span>
-        <span style={{...serif,fontSize:22,color,lineHeight:1}}>{value}<span style={{fontSize:12,color:C.muted}}>/10</span></span>
+        <span style={{...serif,fontSize:22,color:sliderColor,lineHeight:1}}>{value}<span style={{fontSize:12,color:C.muted}}>/10</span></span>
       </div>
       <input type="range" min={1} max={10} value={value} onChange={e=>onChange(+e.target.value)} />
     </div>
   );
 }
 
-function Check({label,checked,onChange,color=C.accent}){
+function Check({label,checked,onChange,color}){
+  const {C}=React.useContext(ThemeCtx);
+  const checkColor=color??C.accent;
   return(
-    <label style={{display:"flex",alignItems:"center",gap:8,fontSize:12,cursor:"pointer",padding:"6px 10px",borderRadius:8,transition:"all 0.12s",background:checked?color+"12":"transparent",border:`1px solid ${checked?color+"44":"transparent"}`,color:checked?C.text:C.muted}}>
+    <label style={{display:"flex",alignItems:"center",gap:8,fontSize:12,cursor:"pointer",padding:"6px 10px",borderRadius:8,transition:"all 0.12s",background:checked?checkColor+"12":"transparent",border:`1px solid ${checked?checkColor+"44":"transparent"}`,color:checked?C.text:C.muted}}>
       <input type="checkbox" checked={checked} onChange={onChange} />{label}
     </label>
   );
 }
 
-function Pill({label,active,color=C.accent,onClick}){
+function Pill({label,active,color,onClick}){
+  const {C}=React.useContext(ThemeCtx);
+  const pillColor=color??C.accent;
   return(
-    <button onClick={onClick} style={{padding:"3px 10px",borderRadius:14,fontSize:10,cursor:"pointer",fontWeight:active?500:400,transition:"all 0.12s",background:active?color+"18":"transparent",border:`1px solid ${active?color+"66":C.border}`,color:active?color:C.faint}}>
+    <button onClick={onClick} style={{padding:"3px 10px",borderRadius:14,fontSize:10,cursor:"pointer",fontWeight:active?500:400,transition:"all 0.12s",background:active?pillColor+"18":"transparent",border:`1px solid ${active?pillColor+"66":C.border}`,color:active?pillColor:C.faint}}>
       {label}
     </button>
   );
 }
 
 function MiniChart({data=[],height=64,colors={}}){
+  const {C}=React.useContext(ThemeCtx);
   const allV=data.flatMap(d=>Object.values(d.values||{}).filter(v=>v!=null&&!isNaN(+v)));
   const max=Math.max(...allV,1);
   if(allV.length===0) return null;
@@ -297,6 +303,7 @@ function MiniChart({data=[],height=64,colors={}}){
 }
 
 function Modal({children,onClose}){
+  const {C}=React.useContext(ThemeCtx);
   useEffect(()=>{const h=e=>{if(e.key==="Escape")onClose()};window.addEventListener("keydown",h);return()=>window.removeEventListener("keydown",h);},[onClose]);
   return(
     <div onClick={onClose} style={{position:"fixed",inset:0,background:"#000000CC",zIndex:999,display:"flex",alignItems:"center",justifyContent:"center",padding:20}}>
@@ -328,6 +335,7 @@ function useEurUsd(){
 
 // ─── TIMED MED LOGGER ────────────────────────────────────────────────────────
 function TimedMedLogger({log,upd}){
+  const {C,inp}=React.useContext(ThemeCtx);
   const timedMeds=log.timedMeds||{};
   const nowT=()=>{const d=new Date();return String(d.getHours()).padStart(2,"0")+":"+String(d.getMinutes()).padStart(2,"0");};
   const addDose=id=>{const ex=timedMeds[id]||[];upd("timedMeds",{...timedMeds,[id]:[...ex,{id:Date.now(),time:nowT()}]});};
@@ -364,6 +372,7 @@ function TimedMedLogger({log,upd}){
 
 // ─── SPEND LOGGER ────────────────────────────────────────────────────────────
 function SpendLogger({log,upd}){
+  const {C,inp,lbl}=React.useContext(ThemeCtx);
   const [form,setForm]=useState({amount:"",category:"",note:"",returnLikely:false});
   const items=log.spendItems||[];
   const addItem=()=>{if(!form.amount||isNaN(parseFloat(form.amount)))return;upd("spendItems",[...items,{id:Date.now(),amount:parseFloat(form.amount),category:form.category||"Other",note:form.note,returnLikely:form.returnLikely}]);setForm({amount:"",category:"",note:"",returnLikely:false});};
@@ -400,7 +409,7 @@ function SpendLogger({log,upd}){
         <div style={{display:"flex",gap:7,alignItems:"flex-end"}}>
           <div style={{flex:1}}><label style={lbl}>Note</label><input value={form.note} onChange={e=>setForm({...form,note:e.target.value})} onKeyDown={e=>e.key==="Enter"&&addItem()} placeholder="What was it?" style={inp} /></div>
           <button onClick={()=>setForm({...form,returnLikely:!form.returnLikely})} style={{padding:"9px 11px",borderRadius:8,cursor:"pointer",fontSize:11,fontWeight:500,flexShrink:0,background:form.returnLikely?C.gold+"22":"transparent",border:`1px solid ${form.returnLikely?C.gold:C.border}`,color:form.returnLikely?C.gold:C.muted}}>↩</button>
-          <button onClick={addItem} style={{padding:"9px 16px",borderRadius:8,background:C.accent,color:"#0A0908",border:"none",cursor:"pointer",fontSize:13,fontWeight:500,flexShrink:0}}>+ Add</button>
+          <button onClick={addItem} style={{padding:"9px 16px",borderRadius:8,background:C.accent,color:C.bg,border:"none",cursor:"pointer",fontSize:13,fontWeight:500,flexShrink:0}}>+ Add</button>
         </div>
       </div>
     </div>
@@ -411,6 +420,7 @@ function SpendLogger({log,upd}){
 // DASHBOARD
 // ═══════════════════════════════════════════════════════════════════════════════
 function Dashboard({dailyLogs,setDailyLogs,cycleStart,cycleLength,beautyLogs,intervals}){
+  const {C,card,inp,lbl}=React.useContext(ThemeCtx);
   const phase=getCyclePhase(cycleStart,cycleLength);
   const pd=phase?PHASES[phase.phase]:null;
   const today=dailyLogs[todayStr()]||{};
@@ -606,7 +616,7 @@ function Dashboard({dailyLogs,setDailyLogs,cycleStart,cycleLength,beautyLogs,int
         <SHead>Tasks</SHead>
         <div style={{display:"flex",gap:8,marginBottom:12}}>
           <input value={newTask} onChange={e=>setNewTask(e.target.value)} placeholder="Add a task..." onKeyDown={e=>e.key==="Enter"&&addTask()} style={{...inp,flex:1}} />
-          <button onClick={addTask} style={{padding:"9px 16px",borderRadius:8,background:C.accent,color:"#0A0908",border:"none",cursor:"pointer",fontSize:13,fontWeight:500,whiteSpace:"nowrap"}}>+ Add</button>
+          <button onClick={addTask} style={{padding:"9px 16px",borderRadius:8,background:C.accent,color:C.bg,border:"none",cursor:"pointer",fontSize:13,fontWeight:500,whiteSpace:"nowrap"}}>+ Add</button>
         </div>
         {tasks.filter(t=>!t.done).length===0&&<div style={{fontSize:13,color:C.faint,textAlign:"center",padding:"12px 0"}}>All clear ✓</div>}
         {tasks.filter(t=>!t.done).map(task=>(
@@ -631,6 +641,7 @@ function Dashboard({dailyLogs,setDailyLogs,cycleStart,cycleLength,beautyLogs,int
 // DAILY LOG
 // ═══════════════════════════════════════════════════════════════════════════════
 function DailyLog({logs,setLogs,cycleStart,cycleLength}){
+  const {C,card,inp,lbl}=React.useContext(ThemeCtx);
   const [date,setDate]=useState(todayStr());
   const [sheetsUrl,setSheetsUrl]=useLS("nm_sheets_url","");
   const [syncing,setSyncing]=useState(false);
@@ -834,9 +845,10 @@ function DailyLog({logs,setLogs,cycleStart,cycleLength}){
         <SHead>Sync to Google Sheets</SHead>
         <div style={{marginBottom:10}}><label style={lbl}>Apps Script URL</label><input value={sheetsUrl} onChange={e=>setSheetsUrl(e.target.value)} placeholder="https://script.google.com/macros/s/..." style={inp} /></div>
         <div style={{display:"flex",alignItems:"center",gap:12}}>
-          <button onClick={handleSync} disabled={syncing||!sheetsUrl} style={{padding:"8px 20px",borderRadius:8,background:syncing?"transparent":syncOk===true?C.sage:C.accent,color:syncing?C.muted:"#0A0908",border:syncing?`1px solid ${C.border}`:"none",cursor:sheetsUrl?"pointer":"not-allowed",fontSize:13,fontWeight:500,opacity:sheetsUrl?1:0.5}}>
+          <button onClick={handleSync} disabled={syncing||!sheetsUrl} style={{padding:"8px 20px",borderRadius:8,background:syncing?"transparent":syncOk===true?C.sage:C.accent,color:syncing?C.muted:C.bg,border:syncing?`1px solid ${C.border}`:"none",cursor:sheetsUrl?"pointer":"not-allowed",fontSize:13,fontWeight:500,opacity:sheetsUrl?1:0.5}}>
             {syncing?"Syncing...":syncOk===true?"☁ Synced ✓":"☁ Sync Today"}
           </button>
+
           {syncMsg&&<span style={{fontSize:12,color:syncOk?C.sage:C.danger}}>{syncMsg}</span>}
         </div>
       </div>
@@ -867,6 +879,7 @@ function compressImage(file){
 }
 
 function SkinTab({logs,setLogs,cycleStart,cycleLength}){
+  const {C,card,inp,lbl}=React.useContext(ThemeCtx);
   const [date,setDate]=useState(todayStr());
   const [compareA,setCompareA]=useState("");
   const [compareB,setCompareB]=useState("");
@@ -1216,6 +1229,7 @@ function SkinTab({logs,setLogs,cycleStart,cycleLength}){
 // HAIR & BEAUTY (combined)
 // ═══════════════════════════════════════════════════════════════════════════════
 function HairBeautyTab({dailyLogs,beautyLogs,setBeautyLogs,intervals,setIntervals}){
+  const {C,card,inp,lbl}=React.useContext(ThemeCtx);
   const [washLogs,setWashLogs]=useLS("nm_hair",[]);
   const [form,setForm]=useState({date:todayStr(),method:"air dry",conditioner:"regular",products:[],notes:""});
   const [histOpen,setHistOpen]=useState(false);
@@ -1266,7 +1280,7 @@ function HairBeautyTab({dailyLogs,beautyLogs,setBeautyLogs,intervals,setInterval
             const day=i+1;const wd=washDates[day];const isToday=day===now.getDate();
             const bg=wd?wd.conditioner==="mask"?C.accent+"BB":C.gold+"BB":C.border;
             return(
-              <div key={day} style={{aspectRatio:"1",borderRadius:5,display:"flex",alignItems:"center",justifyContent:"center",background:bg,border:isToday?`1px solid ${C.white}33`:"1px solid transparent",fontSize:10,color:wd?"#0A0908":C.faint,fontWeight:wd?600:400}}>
+              <div key={day} style={{aspectRatio:"1",borderRadius:5,display:"flex",alignItems:"center",justifyContent:"center",background:bg,border:isToday?`1px solid ${C.white}33`:"1px solid transparent",fontSize:10,color:wd?C.bg:C.faint,fontWeight:wd?600:400}}>
                 {day}
               </div>
             );
@@ -1287,7 +1301,7 @@ function HairBeautyTab({dailyLogs,beautyLogs,setBeautyLogs,intervals,setInterval
           <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:5}}>{hairProds.map(p=><Check key={p} label={p} color={C.gold} checked={form.products.includes(p)} onChange={e=>setForm({...form,products:e.target.checked?[...form.products,p]:form.products.filter(x=>x!==p)})} />)}</div>
         </div>
         <div style={{marginBottom:12}}><label style={lbl}>Notes</label><input value={form.notes} onChange={e=>setForm({...form,notes:e.target.value})} placeholder="How did it look / feel after?" style={inp} /></div>
-        <button onClick={()=>{setWashLogs([...washLogs,{...form,id:Date.now()}]);setForm({date:todayStr(),method:"air dry",conditioner:"regular",products:[],notes:""});}} style={{padding:"9px 18px",borderRadius:8,background:C.accent,color:"#0A0908",border:"none",cursor:"pointer",fontSize:13,fontWeight:500}}>Log Wash</button>
+        <button onClick={()=>{setWashLogs([...washLogs,{...form,id:Date.now()}]);setForm({date:todayStr(),method:"air dry",conditioner:"regular",products:[],notes:""});}} style={{padding:"9px 18px",borderRadius:8,background:C.accent,color:C.bg,border:"none",cursor:"pointer",fontSize:13,fontWeight:500}}>Log Wash</button>
       </div>
 
       {/* Wash history toggle */}
@@ -1342,6 +1356,7 @@ function HairBeautyTab({dailyLogs,beautyLogs,setBeautyLogs,intervals,setInterval
 // CYCLE + BODY (combined)
 // ═══════════════════════════════════════════════════════════════════════════════
 function CycleTab({dailyLogs}){
+  const {C,card,inp,lbl}=React.useContext(ThemeCtx);
   const [cycleStart,setCycleStart]=useLS("nm_cycle_start","");
   const [cycleLength,setCycleLength]=useLS("nm_cycle_length",28);
   const phase=getCyclePhase(cycleStart,cycleLength);
@@ -1442,7 +1457,7 @@ function CycleTab({dailyLogs}){
                             outline:isToday?`2px solid ${col}`:isToday?"2px solid "+C.muted:"none",
                             display:"flex",alignItems:"center",justifyContent:"center",
                             fontSize:8,fontWeight:isToday?700:400,
-                            color:isToday?"#0A0908":col?col:C.faint
+                            color:isToday?C.bg:col?col:C.faint
                           }}>{day}</div>
                         );
                       })}
@@ -1473,7 +1488,7 @@ function CycleTab({dailyLogs}){
                   <div style={{width:88,fontSize:10,color:isCurrent?C.white:C.muted,fontWeight:isCurrent?600:400,flexShrink:0}}>{wLabel}</div>
                   <div style={{flex:1,display:"flex",borderRadius:4,overflow:"hidden",height:18}}>
                     {phases.map(([p,count])=>(
-                      <div key={p} style={{flex:count,background:PHASES[p].color+(isCurrent?"CC":"44"),display:"flex",alignItems:"center",justifyContent:"center",fontSize:8,color:isCurrent?"#0A0908":PHASES[p].color,fontWeight:600,overflow:"hidden",whiteSpace:"nowrap"}}>
+                      <div key={p} style={{flex:count,background:PHASES[p].color+(isCurrent?"CC":"44"),display:"flex",alignItems:"center",justifyContent:"center",fontSize:8,color:isCurrent?C.bg:PHASES[p].color,fontWeight:600,overflow:"hidden",whiteSpace:"nowrap"}}>
                         {count>=2?PHASES[p].label.slice(0,3).toUpperCase():""}
                       </div>
                     ))}
@@ -1520,7 +1535,7 @@ function CycleTab({dailyLogs}){
           <div style={card}>
             <SHead>Cycle Map</SHead>
             <div style={{display:"flex",borderRadius:9,overflow:"hidden",height:40}}>
-              {phaseMap.map(({p,days})=><div key={p} style={{flex:days,display:"flex",alignItems:"center",justifyContent:"center",background:PHASES[p].color+(phase.phase===p?"CC":"28"),fontSize:10,letterSpacing:"0.04em",color:phase.phase===p?"#0A0908":PHASES[p].color,fontWeight:phase.phase===p?600:400}}>{PHASES[p].label.slice(0,3).toUpperCase()}</div>)}
+              {phaseMap.map(({p,days})=><div key={p} style={{flex:days,display:"flex",alignItems:"center",justifyContent:"center",background:PHASES[p].color+(phase.phase===p?"CC":"28"),fontSize:10,letterSpacing:"0.04em",color:phase.phase===p?C.bg:PHASES[p].color,fontWeight:phase.phase===p?600:400}}>{PHASES[p].label.slice(0,3).toUpperCase()}</div>)}
             </div>
             <div style={{display:"flex",marginTop:5}}>{phaseMap.map(({p,days})=><div key={p} style={{flex:days,textAlign:"center",fontSize:9,color:C.faint}}>{days}d</div>)}</div>
           </div>
@@ -1546,6 +1561,7 @@ function CycleTab({dailyLogs}){
 // SPEND
 // ═══════════════════════════════════════════════════════════════════════════════
 function SpendTab({logs}){
+  const {C,card,lbl}=React.useContext(ThemeCtx);
   const [view,setView]=useState("month");
   const allSpend=useMemo(()=>{
     const entries=[];
@@ -1609,6 +1625,7 @@ function SpendTab({logs}){
 // WEDDING (includes EUR/USD)
 // ═══════════════════════════════════════════════════════════════════════════════
 function WeddingTab(){
+  const {C,card,inp,lbl}=React.useContext(ThemeCtx);
   const [wdates,setWdates]=useLS("nm_wdates",{
     wedding:{date:"2026-09-17",label:"Wedding Day",location:"Tuscany, Italy"},
     bach:{date:"2026-07-30",label:"Bachelorette",location:""},
@@ -1638,7 +1655,7 @@ function WeddingTab(){
   return(
     <div style={{display:"flex",flexDirection:"column",gap:18}}>
       {/* Hero */}
-      <div style={{...card,background:"linear-gradient(135deg,#1A1814 0%,#1E1C18 100%)",position:"relative",overflow:"hidden"}}>
+      <div style={{...card,position:"relative",overflow:"hidden"}}>
         <div style={{position:"absolute",top:-20,right:-20,width:130,height:130,borderRadius:"50%",background:C.sage+"07",pointerEvents:"none"}} />
         <div style={{...serif,fontSize:12,color:C.muted,letterSpacing:"0.22em",marginBottom:5}}>SEPTEMBER 17, 2026</div>
         <h1 style={{...serif,fontSize:36,fontWeight:300,color:C.white,margin:0}}>Nicole &amp; Tyler</h1>
@@ -1701,7 +1718,7 @@ function WeddingTab(){
           <input value={form.text} onChange={e=>setForm({...form,text:e.target.value})} onKeyDown={e=>e.key==="Enter"&&add()} placeholder="What needs to happen..." style={inp} />
           <select value={form.category} onChange={e=>setForm({...form,category:e.target.value})} style={inp}>{cats.map(c=><option key={c} value={c}>{c}</option>)}</select>
           <select value={form.priority} onChange={e=>setForm({...form,priority:e.target.value})} style={inp}><option value="high">High</option><option value="medium">Medium</option><option value="low">Low</option></select>
-          <button onClick={add} style={{padding:"9px 16px",borderRadius:8,background:C.accent,color:"#0A0908",border:"none",cursor:"pointer",fontSize:13,fontWeight:500}}>Add</button>
+          <button onClick={add} style={{padding:"9px 16px",borderRadius:8,background:C.accent,color:C.bg,border:"none",cursor:"pointer",fontSize:13,fontWeight:500}}>Add</button>
         </div>
         {Object.entries(grouped).map(([cat,tasks])=>(
           <div key={cat} style={{marginBottom:14}}>
@@ -1733,6 +1750,7 @@ function WeddingTab(){
 // DATA PANEL (export / import / sync explanation)
 // ═══════════════════════════════════════════════════════════════════════════════
 function DataPanel({onClose}){
+  const {C,inp,lbl}=React.useContext(ThemeCtx);
   const [msg,setMsg]=useState("");
   const [_cloudName,setCloudName]=useLS("nm_cloudinary_name","dx9jqeqxj");
   const cloudName=_cloudName||"dx9jqeqxj";
@@ -1863,6 +1881,34 @@ function App(){
   const [showData,setShowData]=useState(false);
   const [showSaved,setShowSaved]=useState(false);
   const savedSkip=useRef(true);
+
+  // ─── Theme ─────────────────────────────────────────────────────────────────
+  const [themeMode,setThemeMode]=useLS("nm_theme","auto"); // "auto" | "light" | "dark"
+  const isDayTime=()=>{const h=new Date().getHours();return h>=6&&h<20;};
+  const [isDay,setIsDay]=useState(()=>themeMode==="dark"?false:themeMode==="light"?true:isDayTime());
+  useEffect(()=>{setIsDay(themeMode==="dark"?false:themeMode==="light"?true:isDayTime());},[themeMode]);
+  useEffect(()=>{
+    if(themeMode!=="auto")return;
+    const id=setInterval(()=>setIsDay(isDayTime()),60000);
+    return()=>clearInterval(id);
+  },[themeMode]);
+
+  const C=useMemo(()=>isDay?LIGHT_C:DARK_C,[isDay]);
+  const card=useMemo(()=>({background:C.card,border:`1px solid ${C.border}`,borderRadius:14,padding:"20px 22px"}),[C]);
+  const inp=useMemo(()=>({background:C.surface,color:C.text,border:`1px solid ${C.border}`,borderRadius:8,padding:"9px 13px",fontFamily:"'DM Sans', sans-serif",fontSize:13,width:"100%",transition:"border-color 0.2s"}),[C]);
+  const lbl=useMemo(()=>({fontSize:10,letterSpacing:"0.12em",textTransform:"uppercase",color:C.muted,marginBottom:6,display:"block",fontFamily:"'DM Sans', sans-serif",fontWeight:500}),[C]);
+
+  useEffect(()=>{
+    const r=document.documentElement.style;
+    r.setProperty("--bg",C.bg);r.setProperty("--surface",C.surface);
+    r.setProperty("--faint",C.faint);r.setProperty("--card",C.card);r.setProperty("--text",C.text);
+    document.body.style.background=C.bg;
+    document.querySelector('meta[name="theme-color"]')?.setAttribute("content",C.bg);
+  },[C]);
+
+  const cycleTheme=()=>setThemeMode(m=>m==="auto"?(isDay?"dark":"light"):m==="dark"?"light":"auto");
+  const themeIcon=themeMode==="auto"?"⊙":isDay?"☀":"🌙";
+
   useEffect(()=>{
     if(savedSkip.current){savedSkip.current=false;return;}
     setShowSaved(true);
@@ -1871,9 +1917,10 @@ function App(){
   },[dailyLogs]);
 
   return(
-    <div style={{fontFamily:"'DM Sans', sans-serif",background:C.bg,minHeight:"100vh",color:C.text}}>
+    <ThemeCtx.Provider value={{C,card,inp,lbl,isDay,themeMode,setThemeMode}}>
+    <div style={{fontFamily:"'DM Sans', sans-serif",background:C.bg,minHeight:"100vh",color:C.text,transition:"background 0.4s,color 0.4s"}}>
       <div style={{position:"fixed",inset:0,background:"radial-gradient(ellipse at 15% 40%,#C4856A05 0%,transparent 55%),radial-gradient(ellipse at 85% 20%,#7A9B8A04 0%,transparent 50%)",pointerEvents:"none",zIndex:0}} />
-      <div style={{position:"sticky",top:0,zIndex:100,background:C.bg+"F4",backdropFilter:"blur(16px)",borderBottom:`1px solid ${C.border}`}}>
+      <div style={{position:"sticky",top:0,zIndex:100,background:C.bg+"F4",backdropFilter:"blur(16px)",borderBottom:`1px solid ${C.border}`,transition:"background 0.4s,border-color 0.4s"}}>
         <div style={{maxWidth:960,margin:"0 auto",padding:"0 20px"}}>
           <div style={{display:"flex",alignItems:"center",gap:12,height:54}}>
             <div style={{fontFamily:"'Cormorant Garamond', serif",fontSize:16,color:C.accent,letterSpacing:"0.22em",fontStyle:"italic",flexShrink:0}}>nicole</div>
@@ -1890,6 +1937,7 @@ function App(){
             </div>
             <div style={{display:"flex",alignItems:"center",gap:8,flexShrink:0}}>
               <span style={{fontSize:11,color:C.sage,transition:"opacity 0.4s",opacity:showSaved?1:0,pointerEvents:"none"}}>✓ saved</span>
+              <button onClick={cycleTheme} title={themeMode==="auto"?"Auto (day/night)":isDay?"Light mode":"Dark mode"} style={{padding:"4px 9px",borderRadius:14,fontSize:13,cursor:"pointer",border:`1px solid ${themeMode!=="auto"?C.accent:C.border}`,background:themeMode!=="auto"?C.accent+"18":"transparent",color:themeMode!=="auto"?C.accent:C.muted,transition:"all 0.15s"}}>{themeIcon}</button>
               <button onClick={()=>setShowData(true)} title="Data sync &amp; export" style={{padding:"4px 10px",borderRadius:14,fontSize:11,cursor:"pointer",border:`1px solid ${C.border}`,background:"transparent",color:C.muted,whiteSpace:"nowrap",transition:"all 0.15s"}}>⊙ Sync</button>
             </div>
           </div>
@@ -1908,6 +1956,7 @@ function App(){
         </div>
       </div>
     </div>
+    </ThemeCtx.Provider>
   );
 }
 
