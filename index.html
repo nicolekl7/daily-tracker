@@ -207,7 +207,7 @@ const PHASES = {
 // ─── LISTS ───────────────────────────────────────────────────────────────────
 const SKINCARE_ALL = ["Gentle Cleanser","Azelaic Acid 15%","Moisturizer","Eye Cream","Mist / Hydrating Spray"];
 const SKINCARE_AM = [...SKINCARE_ALL, "SPF 50+","SPF 20–30 Tinted","Face Mask"];
-const SKINCARE_PM = SKINCARE_ALL;
+const SKINCARE_PM = [...SKINCARE_ALL, "LED Mask"];
 
 const SUPPLEMENTS = ["Magnesium Glycinate","Iron","Creatine","Electrolytes"];
 const TIMED_MEDS = [
@@ -1292,7 +1292,7 @@ function HairBeautyTab({dailyLogs,beautyLogs,setBeautyLogs,intervals,setInterval
   const [form,setForm]=useState({date:todayStr(),method:"air dry",conditioner:"regular",products:[],notes:""});
   const [histOpen,setHistOpen]=useState(false);
   const [calOffset,setCalOffset]=useState(0);
-  const hairProds=["Olaplex No.3","Olaplex No.4","Olaplex No.5","K18 Mask","Heat Protectant","Dry Shampoo","Hair Oil","Scalp Serum","Leave-in Conditioner","No products"];
+  const hairProds=["Pantene Shampoo","Pantene Conditioner","Conditioning Mask","Clarifying Shampoo","Leave-in Conditioner OGX","Hair Oil OUAI","Leave-in Conditioner OUAI"];
   const sorted=[...washLogs].sort((a,b)=>new Date(a.date)-new Date(b.date));
   const last=sorted[sorted.length-1];
   const daysSince=last?Math.round((new Date()-new Date(last.date+"T12:00:00"))/86400000):null;
