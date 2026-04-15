@@ -1297,9 +1297,62 @@ function HairBeautyTab({dailyLogs,beautyLogs,setBeautyLogs,intervals,setInterval
   const last=sorted[sorted.length-1];
   const daysSince=last?Math.round((new Date()-new Date(last.date+"T12:00:00"))/86400000):null;
 
+  // LED Mask weekly tracker
+  const LED_GOAL=4;
+  const getLedCount=(offsetWeeks=0)=>{
+    const now=new Date(),dow=now.getDay(),toMon=dow===0?-6:1-dow;
+    const mon=new Date(now);mon.setDate(now.getDate()+toMon+(offsetWeeks*7));mon.setHours(0,0,0,0);
+    const sun=new Date(mon);sun.setDate(mon.getDate()+6);sun.setHours(23,59,59,999);
+    return Object.entries(dailyLogs).filter(([d,v])=>{
+      if(!v)return false;const dt=new Date(d+"T12:00:00");
+      return dt>=mon&&dt<=sun&&(v.skincare?.PM||[]).includes("LED Mask");
+    }).length;
+  };
+  const thisWeekLed=getLedCount(0);
+  const lastWeekLed=getLedCount(-1);
+  let ledStreak=0;
+  if(lastWeekLed>=LED_GOAL){ledStreak=1;for(let w=-2;w>=-52;w--){if(getLedCount(w)>=LED_GOAL)ledStreak++;else break;}}
+  if(thisWeekLed>=LED_GOAL)ledStreak++;
+  const todayD=new Date(),todayDow=todayD.getDay(),toMon=todayDow===0?-6:1-todayDow;
+  const thisMonday=new Date(todayD);thisMonday.setDate(todayD.getDate()+toMon);
+  const weekLabel=thisMonday.toLocaleDateString("en-US",{month:"short",day:"numeric"});
+
   return(
     <div style={{display:"flex",flexDirection:"column",gap:18}}>
       <PTitle>Hair & Beauty</PTitle>
+
+      {/* LED Mask tracker */}
+      <div style={{...card,borderLeft:`3px solid ${thisWeekLed>=LED_GOAL?C.sage:C.border}`}}>
+        <div style={{display:"flex",justifyContent:"space-between",alignItems:"center"}}>
+          <div>
+            <div style={lbl}>LED Mask · Week of {weekLabel}</div>
+            <div style={{display:"flex",gap:8,alignItems:"center",marginTop:8}}>
+              {Array.from({length:LED_GOAL},(_,i)=>(
+                <div key={i} style={{width:22,height:22,borderRadius:"50%",background:i<thisWeekLed?C.sage:C.border,transition:"background 0.25s",boxShadow:i<thisWeekLed?`0 0 7px ${C.sage}55`:"none"}} />
+              ))}
+              <span style={{...serif,fontSize:22,color:thisWeekLed>=LED_GOAL?C.sage:C.text,marginLeft:6,lineHeight:1}}>{thisWeekLed}<span style={{fontSize:13,color:C.muted}}>/{LED_GOAL}</span></span>
+            </div>
+            <div style={{fontSize:11,color:C.faint,marginTop:5}}>Checked off in PM skincare</div>
+          </div>
+          <div style={{textAlign:"right",flexShrink:0,paddingLeft:12}}>
+            {ledStreak>1?(
+              <div>
+                <div style={{...serif,fontSize:34,color:C.sage,lineHeight:1}}>{ledStreak}</div>
+                <div style={{fontSize:10,color:C.muted,marginTop:2}}>weeks in a row</div>
+              </div>
+            ):lastWeekLed>=LED_GOAL?(
+              <div style={{fontSize:12,color:C.sage,fontWeight:500}}>✓ Done last week</div>
+            ):lastWeekLed>0?(
+              <div>
+                <div style={{...serif,fontSize:26,color:C.muted,lineHeight:1}}>{lastWeekLed}/{LED_GOAL}</div>
+                <div style={{fontSize:10,color:C.faint,marginTop:2}}>last week</div>
+              </div>
+            ):(
+              <div style={{fontSize:11,color:C.faint}}>No history yet</div>
+            )}
+          </div>
+        </div>
+      </div>
 
       {/* Log a wash — FIRST */}
       <div style={card}>
