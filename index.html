@@ -49,9 +49,11 @@ function useLS(key, init) {
 function getCyclePhase(startDate, length=28) {
   if(!startDate) return null;
   const elapsed = Math.floor((new Date()-new Date(startDate))/86400000);
-  const day = (elapsed % length)+1;
+  const day = elapsed+1;
   const phase = day<=5?"menstrual":day<=13?"follicular":day<=16?"ovulatory":"luteal";
-  return { phase, day };
+  const late = day > length;
+  const almostDue = !late && day >= length-2;
+  return { phase, day, late, almostDue };
 }
 
 function sleepDuration(bed, wake) {
@@ -207,7 +209,7 @@ const PHASES = {
 // ─── LISTS ───────────────────────────────────────────────────────────────────
 const SKINCARE_ALL = ["Gentle Cleanser","Azelaic Acid 15%","Moisturizer","Eye Cream","Mist / Hydrating Spray"];
 const SKINCARE_AM = [...SKINCARE_ALL, "SPF 50+","SPF 20–30 Tinted","Face Mask"];
-const SKINCARE_PM = [...SKINCARE_ALL, "LED Mask"];
+const SKINCARE_PM = ["Cleansing Balm", ...SKINCARE_ALL, "B5 Serum", "LED Mask"];
 
 const SUPPLEMENTS = ["Magnesium Glycinate","Iron","Creatine","Electrolytes"];
 const TIMED_MEDS = [
@@ -478,7 +480,7 @@ function Dashboard({dailyLogs,setDailyLogs,cycleStart,cycleLength,beautyLogs,int
           <h1 style={{...serif,fontSize:32,fontWeight:300,color:C.white,margin:0}}>{greeting}, Nicole.</h1>
           <div style={{fontSize:13,color:C.muted,marginTop:4}}>{new Date().toLocaleDateString("en-US",{weekday:"long",month:"long",day:"numeric",year:"numeric"})}</div>
         </div>
-        {phase&&<div style={{display:"inline-flex",alignItems:"center",gap:7,background:PHASES[phase.phase].color+"18",border:`1px solid ${PHASES[phase.phase].color}44`,borderRadius:20,padding:"5px 13px",flexShrink:0}}><div style={{width:6,height:6,borderRadius:"50%",background:PHASES[phase.phase].color}} /><span style={{fontSize:11,color:PHASES[phase.phase].color,fontWeight:500}}>{PHASES[phase.phase].label} · Day {phase.day}</span></div>}
+        {phase&&<div style={{display:"inline-flex",alignItems:"center",gap:7,background:PHASES[phase.phase].color+"18",border:`1px solid ${PHASES[phase.phase].color}44`,borderRadius:20,padding:"5px 13px",flexShrink:0}}><div style={{width:6,height:6,borderRadius:"50%",background:PHASES[phase.phase].color}} /><span style={{fontSize:11,color:PHASES[phase.phase].color,fontWeight:500}}>{PHASES[phase.phase].label} · Day {phase.day}{phase.late?" (Late)":""}</span></div>}
       </div>
 
       {/* Wedding countdowns */}
@@ -588,6 +590,21 @@ function Dashboard({dailyLogs,setDailyLogs,cycleStart,cycleLength,beautyLogs,int
             <div style={{fontSize:13,fontWeight:600,color:C.accent,marginBottom:3}}>Conditions match {flareRisk.matches} of your past flare day{flareRisk.matches!==1?"s":""}</div>
             <div style={{fontSize:12,color:C.muted,lineHeight:1.5,marginBottom:6}}>Today's pattern looks similar to previous flare days. Consider extra moisturizer and skipping actives tonight.</div>
             <div style={{display:"flex",flexWrap:"wrap",gap:4}}>{flareRisk.factors.map(f=><span key={f} style={{fontSize:10,padding:"2px 8px",borderRadius:8,background:C.accent+"18",color:C.accent}}>{f}</span>)}</div>
+          </div>
+        </div>
+      )}
+
+      {/* Period due / late alert */}
+      {(phase?.almostDue||phase?.late)&&(
+        <div style={{borderRadius:10,padding:"13px 18px",background:C.gold+"12",border:`1px solid ${C.gold}44`,display:"flex",gap:12,alignItems:"flex-start"}}>
+          <span style={{fontSize:18,flexShrink:0}}>{phase.late?"🩸":"🌸"}</span>
+          <div>
+            <div style={{fontSize:13,fontWeight:600,color:C.gold,marginBottom:3}}>
+              {phase.late?`Period ${phase.day-cycleLength} day${phase.day-cycleLength!==1?"s":""} late`:"Period due soon"}
+            </div>
+            <div style={{fontSize:12,color:C.muted,lineHeight:1.5}}>
+              {phase.late?"Your period hasn't arrived yet — no worries. Log your new period start in the Cycle tab when it comes.":"Expected in "+(cycleLength-phase.day+1)+" day"+(cycleLength-phase.day+1!==1?"s":"")+". Log your new period start in the Cycle tab when it arrives."}
+            </div>
           </div>
         </div>
       )}
@@ -834,6 +851,7 @@ function DailyLog({logs,setLogs,cycleStart,cycleLength}){
         <div style={lbl}>Bristol Stool Scale — tap all that apply today</div>
         <div style={{display:"flex",flexDirection:"column",gap:4,marginBottom:12}}>
           {[
+            {t:0,short:"No poop today",detail:"No bowel movement today",col:C.muted},
             {t:1,short:"Type 1 · Hard pellets",detail:"Separate hard lumps, like nuts — severe constipation",col:C.danger},
             {t:2,short:"Type 2 · Lumpy log",detail:"Sausage-shaped but lumpy — mild constipation",col:C.danger},
             {t:3,short:"Type 3 · Cracked log",detail:"Log with surface cracks — on the normal end",col:C.gold},
@@ -846,7 +864,7 @@ function DailyLog({logs,setLogs,cycleStart,cycleLength}){
             return(
               <button key={t} onClick={()=>{const cur=log.bristolTypes||[];upd("bristolTypes",selected?cur.filter(x=>x!==t):[...cur,t]);}}
                 style={{display:"flex",alignItems:"center",gap:10,padding:"8px 12px",borderRadius:8,cursor:"pointer",textAlign:"left",background:selected?col+"15":"transparent",border:`1px solid ${selected?col+"66":C.border}`,transition:"all 0.12s"}}>
-                <div style={{...serif,fontSize:22,fontWeight:300,color:selected?col:C.faint,flexShrink:0,width:24,textAlign:"center",lineHeight:1}}>{t}</div>
+                <div style={{...serif,fontSize:22,fontWeight:300,color:selected?col:C.faint,flexShrink:0,width:24,textAlign:"center",lineHeight:1}}>{t||"—"}</div>
                 <div>
                   <div style={{fontSize:12,fontWeight:selected?500:400,color:selected?col:C.text}}>{short}</div>
                   <div style={{fontSize:10,color:C.muted,marginTop:1}}>{detail}</div>
