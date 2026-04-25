@@ -1153,7 +1153,7 @@ function SkinTab({logs,setLogs,cycleStart,cycleLength}){
         {skinSubmitted?"Skin logged ✓  "+date:"Save skin entry"}
       </button>
 
-      {/* Skincare — today: PM=last night / AM=this morning; past days: both save to that date */}
+      {/* Skincare — today: PM=last night / AM=this morning / PM=tonight; past days: both save to that date */}
       {(()=>{
         const isToday=date===todayStr();
         const pmDate=isToday?prevDateStr:date;
@@ -1162,6 +1162,7 @@ function SkinTab({logs,setLogs,cycleStart,cycleLength}){
         const pmLog=logs[pmDate]||{};const pmSkin=pmLog.skincare||{};
         const updPM=p=>checked=>{const l=pmSkin.PM||[];setLogs({...logs,[pmDate]:{...pmLog,skincare:{...pmSkin,PM:checked?[...l,p]:l.filter(x=>x!==p)}}});};
         const updAM=p=>checked=>{const c=log.skincare||{};const l=c.AM||[];upd("skincare",{...c,AM:checked?[...l,p]:l.filter(x=>x!==p)});};
+        const updTonightPM=p=>checked=>{const c=log.skincare||{};const l=c.PM||[];upd("skincare",{...c,PM:checked?[...l,p]:l.filter(x=>x!==p)});};
         return(
           <div style={card}>
             <SHead>Skincare</SHead>
@@ -1174,7 +1175,7 @@ function SkinTab({logs,setLogs,cycleStart,cycleLength}){
                 {SKINCARE_PM.map(p=><Check key={p} label={p} color={C.gold} checked={(pmSkin.PM||[]).includes(p)} onChange={e=>updPM(p)(e.target.checked)} />)}
               </div>
             </div>
-            <div style={{marginBottom:12,padding:"12px 14px",background:C.sage+"0C",borderRadius:10,border:`1px solid ${C.sage}22`}}>
+            <div style={{marginBottom:14,padding:"12px 14px",background:C.sage+"0C",borderRadius:10,border:`1px solid ${C.sage}22`}}>
               <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:10}}>
                 <div style={{...lbl,margin:0,color:C.sage}}>{amLabel}</div>
                 <div style={{fontSize:10,color:C.faint}}>{date}</div>
@@ -1183,6 +1184,17 @@ function SkinTab({logs,setLogs,cycleStart,cycleLength}){
                 {SKINCARE_AM.map(p=><Check key={p} label={p} color={C.sage} checked={((log.skincare||{}).AM||[]).includes(p)} onChange={e=>updAM(p)(e.target.checked)} />)}
               </div>
             </div>
+            {isToday&&(
+              <div style={{marginBottom:14,padding:"12px 14px",background:C.accent+"0C",borderRadius:10,border:`1px solid ${C.accent}22`}}>
+                <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:10}}>
+                  <div style={{...lbl,margin:0,color:C.accent}}>PM — Tonight</div>
+                  <div style={{fontSize:10,color:C.faint}}>{date}</div>
+                </div>
+                <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:5}}>
+                  {SKINCARE_PM.map(p=><Check key={p} label={p} color={C.accent} checked={((log.skincare||{}).PM||[]).includes(p)} onChange={e=>updTonightPM(p)(e.target.checked)} />)}
+                </div>
+              </div>
+            )}
             <div><label style={lbl}>Skin Notes</label><textarea rows={2} value={log.skinNotes||""} onChange={e=>upd("skinNotes",e.target.value)} placeholder="Redness, texture, breakouts..." style={{...inp,resize:"none"}} /></div>
           </div>
         );
