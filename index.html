@@ -2027,6 +2027,158 @@ function DataPanel({onClose}){
     const a=document.createElement("a");a.href=url;a.download="nicole-os-"+new Date().toISOString().slice(0,10)+".json";a.click();URL.revokeObjectURL(url);
     setMsg("Exported ✓");setTimeout(()=>setMsg(""),3000);
   };
+
+  const exportForClaude=()=>{
+    const keys=Object.keys(localStorage).filter(k=>k.startsWith("nm_"));
+    const raw={};
+    keys.forEach(k=>{try{raw[k]=JSON.parse(localStorage.getItem(k));}catch{raw[k]=localStorage.getItem(k);}});
+    const daily=raw.nm_daily||{};
+    const cyStart=raw.nm_cycle_start||"";
+    const cyLen=Number(raw.nm_cycle_length)||28;
+    const tasks=raw.nm_tasks||[];
+    const hairLogs=raw.nm_hair||[];
+    const beauty=raw.nm_beauty||{};
+    const beautyIntervals=raw.nm_beauty_intervals||{};
+    const phaseForDate=d=>{
+      if(!cyStart)return null;
+      const elapsed=Math.floor((new Date(d+"T12:00:00")-new Date(cyStart))/86400000);
+      const day=elapsed+1;
+      if(day<1||day>cyLen*4)return null;
+      const phase=day<=5?"menstrual":day<=13?"follicular":day<=16?"ovulatory":"luteal";
+      return{phase,day};
+    };
+    const fmt12h=t=>{if(!t)return"";const[h,m]=t.split(":").map(Number);return((h%12)||12)+":"+String(m).padStart(2,"0")+(h>=12?" PM":" AM");};
+    const slDur=(bed,wake)=>{if(!bed||!wake)return null;const[bh,bm]=bed.split(":").map(Number),[wh,wm]=wake.split(":").map(Number);let mins=(wh*60+wm)-(bh*60+bm);if(mins<0)mins+=1440;return Math.floor(mins/60)+"h"+(mins%60>0?" "+(mins%60)+"m":"");};
+    const L=[];
+    const line=s=>L.push(s??"");
+    line("# Nicole OS — Data Export for Claude Analysis");
+    line("Generated: "+new Date().toLocaleString());
+    line("");
+    if(cyStart){
+      const today=new Date().toISOString().split("T")[0];
+      const cur=phaseForDate(today);
+      line("## Menstrual Cycle");
+      line("- Last period start: "+cyStart);
+      line("- Cycle length: "+cyLen+" days");
+      if(cur)line("- Today: "+PHASES[cur.phase].label+" Phase, Day "+cur.day);
+      line("");
+    }
+    const sortedDates=Object.keys(daily).sort();
+    if(sortedDates.length){
+      line("## Daily Logs ("+sortedDates.length+" days, "+sortedDates[0]+" to "+sortedDates[sortedDates.length-1]+")");
+      line("");
+      sortedDates.forEach(date=>{
+        const log=daily[date];
+        if(!log||!Object.keys(log).length)return;
+        const ph=phaseForDate(date);
+        const phStr=ph?" — "+PHASES[ph.phase].label+" Phase, Day "+ph.day:"";
+        line("### "+date+phStr);
+        const scores=[];
+        if(log.mood!=null)scores.push("Mood: "+log.mood+"/10");
+        if(log.energy!=null)scores.push("Energy: "+log.energy+"/10");
+        if(log.anxiety!=null)scores.push("Anxiety: "+log.anxiety+"/10");
+        if(log.anger!=null)scores.push("Irritability: "+log.anger+"/10");
+        if(scores.length)line("**Scores:** "+scores.join(" | "));
+        if(log.notes)line("**Notes:** "+log.notes);
+        if(log.pinnedNote)line("**Pinned:** "+log.pinnedNote);
+        const dur=slDur(log.bedtime,log.wakeTime);
+        const sleepParts=[];
+        if(log.bedtime)sleepParts.push("Bedtime: "+fmt12h(log.bedtime));
+        if(log.wakeTime)sleepParts.push("Wake: "+fmt12h(log.wakeTime));
+        if(dur)sleepParts.push("Duration: "+dur);
+        if(log.sleepQuality!=null)sleepParts.push("Quality: "+log.sleepQuality+"/10");
+        if((log.sleepSupps||[]).length)sleepParts.push("Supps: "+log.sleepSupps.join(", "));
+        if(sleepParts.length)line("**Sleep:** "+sleepParts.join(" | "));
+        const oura=[];
+        if(log.ouraSleep)oura.push("Score: "+log.ouraSleep);
+        if(log.ouraHrv)oura.push("HRV: "+log.ouraHrv);
+        if(log.ouraReadiness)oura.push("Readiness: "+log.ouraReadiness);
+        if(log.ouraSteps)oura.push("Steps: "+parseInt(log.ouraSteps).toLocaleString());
+        if(log.ouraRhr)oura.push("RHR: "+log.ouraRhr);
+        if(oura.length)line("**Oura:** "+oura.join(" | "));
+        const meals=[["Breakfast",log.breakfast],["Lunch",log.lunch],["Dinner",log.dinner],["Snacks",log.snacks]].filter(([,v])=>v);
+        if(meals.length||(log.foodTagsDay||[]).length||log.foodNotes){
+          line("**Food:**");
+          meals.forEach(([meal,food])=>{
+            const sens=meal==="Snacks"?"snacks":meal.toLowerCase();
+            const flags=(log.mealSensitivity||{})[sens]||[];
+            line("- "+meal+": "+food+(flags.length?" ["+flags.join(", ")+"]":""));
+          });
+          if((log.foodTagsDay||[]).length)line("- Day tags: "+log.foodTagsDay.join(", "));
+          if(log.foodNotes)line("- Notes: "+log.foodNotes);
+        }
+        const symEntries=Object.entries(log.symptoms||{});
+        if(symEntries.length)line("**Symptoms:** "+symEntries.map(([s,v])=>s+" ("+v+")").join(", "));
+        const medLines=TIMED_MEDS.filter(m=>(log.timedMeds||{})[m.id]?.length).map(m=>m.label+": "+((log.timedMeds||{})[m.id]||[]).map(d=>fmt12h(d.time)).join(", "));
+        if(medLines.length)line("**Medications:** "+medLines.join(" | "));
+        if((log.meds||[]).length)line("**Supplements:** "+log.meds.join(", "));
+        if((log.habits||[]).length)line("**Habits:** "+log.habits.join(", "));
+        const amSkin=(log.skincare||{}).AM||[];
+        const pmSkin=(log.skincare||{}).PM||[];
+        if(amSkin.length||pmSkin.length||log.skinRating!=null){
+          const sp=[];
+          if(amSkin.length)sp.push("AM: "+amSkin.join(", "));
+          if(pmSkin.length)sp.push("PM: "+pmSkin.join(", "));
+          if(log.skinRating!=null)sp.push("Rating: "+log.skinRating+"/10");
+          if((log.skinConcerns||[]).length)sp.push("Concerns: "+log.skinConcerns.join(", "));
+          line("**Skincare:** "+sp.join(" | "));
+          if(log.skinNotes)line("**Skin notes:** "+log.skinNotes);
+        }
+        if(log.hairWash)line("**Hair washed:** "+log.hairWash);
+        const spendItems=log.spendItems||[];
+        if(spendItems.length){
+          const tot=spendItems.reduce((s,i)=>s+i.amount,0);
+          const net=spendItems.filter(i=>!i.returnLikely).reduce((s,i)=>s+i.amount,0);
+          line("**Spend:** $"+tot.toFixed(2)+" total ($"+net.toFixed(2)+" net)");
+          spendItems.forEach(i=>line("- "+i.category+(i.note?" — "+i.note:"")+": $"+i.amount.toFixed(2)+(i.returnLikely?" (return likely)":"")));
+        }
+        line("");
+      });
+    }
+    line("## Spending Summary");
+    const allSpend=[];
+    sortedDates.forEach(d=>{(daily[d]?.spendItems||[]).forEach(i=>allSpend.push({...i,date:d}));});
+    if(allSpend.length){
+      const tot=allSpend.reduce((s,i)=>s+i.amount,0);
+      const net=allSpend.filter(i=>!i.returnLikely).reduce((s,i)=>s+i.amount,0);
+      line("Total spent: $"+tot.toFixed(2)+" | Net (excl. likely returns): $"+net.toFixed(2));
+      const byCat={};
+      allSpend.forEach(i=>{byCat[i.category]=(byCat[i.category]||0)+i.amount;});
+      Object.entries(byCat).sort((a,b)=>b[1]-a[1]).forEach(([cat,amt])=>line("- "+cat+": $"+amt.toFixed(2)));
+    }else{line("No spend data.");}
+    line("");
+    line("## Tasks");
+    const active=tasks.filter(t=>!t.done);
+    const done=tasks.filter(t=>t.done);
+    if(active.length){line("Active ("+active.length+"):");active.forEach(t=>line("- [ ] "+t.text+(t.due?" (due: "+t.due+")":"")+(t.category?" ["+t.category+"]":"")));}
+    if(done.length){line("Completed ("+done.length+"):");done.slice(0,30).forEach(t=>line("- [x] "+t.text));if(done.length>30)line("  ... and "+(done.length-30)+" more");}
+    if(!tasks.length)line("No tasks.");
+    line("");
+    if(hairLogs.length){
+      line("## Hair Wash Log");
+      line("Total washes: "+hairLogs.length);
+      line(hairLogs.map(h=>h.date||h).join(", "));
+      line("");
+    }
+    const beautyKeys=Object.keys(beauty);
+    if(beautyKeys.length){
+      line("## Beauty Appointments");
+      BEAUTY_ITEMS.forEach(item=>{
+        const last=beauty[item.id];
+        if(!last)return;
+        const interval=beautyIntervals[item.id]||item.interval;
+        const next=new Date(last);next.setDate(next.getDate()+interval);
+        line("- "+item.label+": last "+last+", next ~"+next.toISOString().split("T")[0]+" (every "+interval+"d)");
+      });
+      line("");
+    }
+    const blob=new Blob([L.join("\n")],{type:"text/plain"});
+    const url=URL.createObjectURL(blob);
+    const a=document.createElement("a");
+    a.href=url;a.download="nicole-os-claude-"+new Date().toISOString().slice(0,10)+".txt";a.click();URL.revokeObjectURL(url);
+    setMsg("Exported for Claude ✓");setTimeout(()=>setMsg(""),3000);
+  };
+
   const importFile=e=>{
     const f=e.target.files[0];if(!f)return;
     const r=new FileReader();
@@ -2080,6 +2232,10 @@ function DataPanel({onClose}){
           All other data (logs, habits, spend) is saved <strong style={{color:C.text}}>in this browser only</strong>. Use export/import below to move it between devices.
         </div>
         <div style={{display:"flex",flexDirection:"column",gap:10,marginBottom:16}}>
+          <button onClick={exportForClaude} style={{padding:"12px 16px",borderRadius:9,background:"#7A6B5A18",border:"1px solid #7A6B5A44",color:"#C4A882",cursor:"pointer",fontSize:13,fontWeight:500,textAlign:"left",display:"flex",justifyContent:"space-between",alignItems:"center"}}>
+            <span>✦ Export for Claude</span>
+            <span style={{fontSize:11,color:C.muted}}>readable .txt — upload to Claude to analyze</span>
+          </button>
           <button onClick={exportAll} style={{padding:"12px 16px",borderRadius:9,background:C.sage+"18",border:`1px solid ${C.sage}44`,color:C.sage,cursor:"pointer",fontSize:13,fontWeight:500,textAlign:"left",display:"flex",justifyContent:"space-between",alignItems:"center"}}>
             <span>↓ Export backup</span>
             <span style={{fontSize:11,color:C.muted}}>downloads a .json with all your data + photos</span>
