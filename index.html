@@ -715,6 +715,63 @@ function DailyLog({logs,setLogs,cycleStart,cycleLength}){
     setPrefillMsg("Copied from "+yStr+" ✓");setTimeout(()=>setPrefillMsg(""),3000);
   };
 
+  // Export to Claude: copy a plain-text summary to clipboard for pasting into Claude
+  const [claudeCopied,setClaudeCopied]=useState(false);
+  const exportToClaude=()=>{
+    const ph=getCyclePhase(cycleStart,cycleLength);
+    const phLabel=ph?PHASES[ph.phase].label+" Phase (Day "+ph.day+")":"";
+    const sl2=sleepDuration(log.bedtime,log.wakeTime);
+    const lines=[];
+    lines.push("# Daily Log — "+date+(phLabel?" · "+phLabel:""));
+    lines.push("");
+    const ratings=[];
+    if(log.mood)ratings.push("Mood: "+log.mood+"/10");
+    if(log.energy)ratings.push("Energy: "+log.energy+"/10");
+    if(log.anxiety)ratings.push("Anxiety: "+log.anxiety+"/10");
+    if(log.anger)ratings.push("Irritability: "+log.anger+"/10");
+    if(log.skinRating)ratings.push("Skin: "+log.skinRating+"/10");
+    if(ratings.length){lines.push("## Mind & Body");ratings.forEach(r=>lines.push("- "+r));if(log.notes)lines.push("- Notes: "+log.notes);lines.push("");}
+    if(sl2||log.sleepQuality||log.bedtime||log.wakeTime||log.ouraSleep){
+      lines.push("## Sleep");
+      if(log.bedtime&&log.wakeTime)lines.push("- "+log.bedtime+" → "+log.wakeTime+(sl2?" ("+sl2.label+")":""));
+      if(log.sleepQuality)lines.push("- Quality: "+log.sleepQuality+"/10");
+      if(log.ouraSleep)lines.push("- Oura Sleep Score: "+log.ouraSleep);
+      if(log.ouraHrv)lines.push("- HRV: "+log.ouraHrv);
+      if(log.ouraReadiness)lines.push("- Readiness: "+log.ouraReadiness);
+      if(log.ouraSteps)lines.push("- Steps: "+parseInt(log.ouraSteps).toLocaleString());
+      lines.push("");
+    }
+    const syms=Object.entries(log.symptoms||{});
+    if(syms.length){lines.push("## Symptoms");syms.forEach(([s,v])=>lines.push("- "+s+(v?" ("+v+")":"")));lines.push("");}
+    if(log.breakfast||log.lunch||log.dinner||log.snacks){
+      lines.push("## Food");
+      if(log.breakfast)lines.push("- Breakfast: "+log.breakfast);
+      if(log.lunch)lines.push("- Lunch: "+log.lunch);
+      if(log.dinner)lines.push("- Dinner: "+log.dinner);
+      if(log.snacks)lines.push("- Snacks: "+log.snacks);
+      if((log.foodTagsDay||[]).length)lines.push("- Tags: "+(log.foodTagsDay||[]).join(", "));
+      lines.push("");
+    }
+    const amSkin=(log.skincare||{}).AM||[];const pmSkin=(log.skincare||{}).PM||[];
+    if(amSkin.length||pmSkin.length){lines.push("## Skincare");if(amSkin.length)lines.push("- AM: "+amSkin.join(", "));if(pmSkin.length)lines.push("- PM: "+pmSkin.join(", "));if(log.skinNotes)lines.push("- Notes: "+log.skinNotes);lines.push("");}
+    const medLines=TIMED_MEDS.filter(m=>(log.timedMeds||{})[m.id]?.length);
+    if(medLines.length||(log.meds||[]).length){
+      lines.push("## Medications & Supplements");
+      medLines.forEach(m=>lines.push("- "+m.label+": "+(log.timedMeds[m.id]||[]).map(d=>fmt12(d.time)).join(", ")));
+      if((log.meds||[]).length)lines.push("- Supplements: "+(log.meds||[]).join(", "));
+      lines.push("");
+    }
+    if((log.spendItems||[]).length){
+      const total=(log.spendItems||[]).reduce((s,i)=>s+i.amount,0);
+      lines.push("## Spend");
+      (log.spendItems||[]).forEach(i=>lines.push("- "+i.category+(i.note?" — "+i.note:"")+" $"+i.amount.toFixed(2)));
+      lines.push("- Total: $"+total.toFixed(2));
+      lines.push("");
+    }
+    const txt=lines.join("\n");
+    navigator.clipboard.writeText(txt).then(()=>{setClaudeCopied(true);setTimeout(()=>setClaudeCopied(false),2500);});
+  };
+
   // PDF export: open print-friendly page in new tab
   const exportPDF=()=>{
     const ph=getCyclePhase(cycleStart,cycleLength);
@@ -755,6 +812,7 @@ function DailyLog({logs,setLogs,cycleStart,cycleLength}){
         <div style={{display:"flex",gap:7,alignItems:"center",flexWrap:"wrap"}}>
           <button onClick={prefillFromYesterday} style={{padding:"7px 13px",borderRadius:8,cursor:"pointer",fontSize:11,fontWeight:500,background:"transparent",border:`1px solid ${C.border}`,color:C.muted,whiteSpace:"nowrap"}}>↩ Copy yesterday</button>
           <button onClick={exportPDF} style={{padding:"7px 13px",borderRadius:8,cursor:"pointer",fontSize:11,fontWeight:500,background:"transparent",border:`1px solid ${C.border}`,color:C.muted,whiteSpace:"nowrap"}}>⬇ Export PDF</button>
+          <button onClick={exportToClaude} style={{padding:"7px 13px",borderRadius:8,cursor:"pointer",fontSize:11,fontWeight:500,background:claudeCopied?C.accent+"22":"transparent",border:`1px solid ${claudeCopied?C.accent:C.border}`,color:claudeCopied?C.accent:C.muted,whiteSpace:"nowrap",transition:"all 0.15s"}}>{claudeCopied?"Copied ✓":"✦ Export to Claude"}</button>
           <input type="date" value={date} onChange={e=>setDate(e.target.value)} style={{...inp,width:"auto"}} />
         </div>
       </div>
