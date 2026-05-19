@@ -36,6 +36,7 @@ const { useState, useEffect, useRef, useMemo } = React;
 
 const todayStr = () => { const d=new Date(); return d.getFullYear()+"-"+String(d.getMonth()+1).padStart(2,"0")+"-"+String(d.getDate()).padStart(2,"0"); };
 const fmt12 = t => { if(!t) return ""; const [h,m]=t.split(":").map(Number); return ((h%12)||12)+":"+String(m).padStart(2,"0")+(h>=12?" PM":" AM"); };
+const daysUntil = d => Math.max(0, Math.ceil((new Date(d) - new Date()) / 86400000));
 function sleepDuration(bed,wake){if(!bed||!wake)return null;const [bh,bm]=bed.split(":").map(Number),[wh,wm]=wake.split(":").map(Number);let mins=(wh*60+wm)-(bh*60+bm);if(mins<0)mins+=1440;return{h:Math.floor(mins/60),m:mins%60,total:mins,label:Math.floor(mins/60)+"h"+(mins%60>0?" "+(mins%60)+"m":"")};}
 function weekStart(ds){const d=new Date(ds+"T12:00:00"),day=d.getDay(),diff=(day===0?-6:1)-day;d.setDate(d.getDate()+diff);return d.toISOString().split("T")[0];}
 
@@ -71,6 +72,13 @@ const SPEND_CATS = ["Food & Dining","Fitness & Supplements","Grooming","Tech & G
 const CAT_COLORS = {"Food & Dining":"#C9A96E","Fitness & Supplements":"#6A8FAA","Grooming":"#7A9B8A","Tech & Gear":"#8A9BAA","Entertainment":"#C9A96E","Travel":"#A07A9B","Subscriptions":"#6A7A8A","Home":"#8A9B7A","Other":"#5A5550"};
 const SEV_CYCLE = [null,"mild","moderate","severe"];
 const SEV_COLORS = {mild:"#C9A96E",moderate:"#C4856A",severe:"#D97070"};
+const TIMED_MEDS = [
+  {id:"vyvanse",     label:"Vyvanse",            color:"#6A8FAA", note:"Onset ~1h · peaks 2–3h · lasts 10–14h"},
+  {id:"adderall_ir", label:"Adderall IR",        color:"#C9A96E", note:"Onset ~30min · peaks 1–2h · lasts 4–6h"},
+  {id:"adderall_xr", label:"Adderall XR",        color:"#C9A96E", note:"Onset ~1h · peaks 2–3h · lasts 8–10h"},
+  {id:"ativan",      label:"Ativan (Lorazepam)", color:"#8A9BAA", note:"Onset 15–30min · lasts 6–8h"},
+  {id:"propranolol", label:"Propranolol",         color:"#7A9B8A", note:"Onset 30–60min · lasts 4–6h"},
+];
 
 // ─── DESIGN ──────────────────────────────────────────────────────────────────
 const DARK_C  = {bg:"#0A0908",surface:"#131210",card:"#1A1814",border:"#272420",text:"#EDE9E1",muted:"#7A7165",faint:"#3D3830",accent:"#6A8FAA",gold:"#C9A96E",sage:"#7A9B8A",danger:"#D97070",white:"#F7F4EF"};
@@ -110,6 +118,17 @@ function Modal({children,onClose}){
   const {C}=React.useContext(ThemeCtx);
   useEffect(()=>{const h=e=>{if(e.key==="Escape")onClose()};window.addEventListener("keydown",h);return()=>window.removeEventListener("keydown",h);},[onClose]);
   return(<div onClick={onClose} style={{position:"fixed",inset:0,background:"#000000CC",zIndex:999,display:"flex",alignItems:"center",justifyContent:"center",padding:20}}><div onClick={e=>e.stopPropagation()} style={{position:"relative",maxWidth:900,width:"100%",maxHeight:"90vh",overflowY:"auto"}}><button onClick={onClose} style={{position:"absolute",top:-12,right:-12,zIndex:1000,width:32,height:32,borderRadius:"50%",background:C.surface,border:`1px solid ${C.border}`,color:C.muted,cursor:"pointer",fontSize:16}}>×</button>{children}</div></div>);
+}
+
+// ─── TIMED MED LOGGER ────────────────────────────────────────────────────────
+function TimedMedLogger({log,upd}){
+  const {C,inp}=React.useContext(ThemeCtx);
+  const timedMeds=log.timedMeds||{};
+  const nowT=()=>{const d=new Date();return String(d.getHours()).padStart(2,"0")+":"+String(d.getMinutes()).padStart(2,"0");};
+  const addDose=id=>{const ex=timedMeds[id]||[];upd("timedMeds",{...timedMeds,[id]:[...ex,{id:Date.now(),time:nowT()}]});};
+  const rmDose=(mid,did)=>{const n={...timedMeds};const u=(timedMeds[mid]||[]).filter(d=>d.id!==did);if(u.length===0)delete n[mid];else n[mid]=u;upd("timedMeds",n);};
+  const updTime=(mid,did,t)=>upd("timedMeds",{...timedMeds,[mid]:(timedMeds[mid]||[]).map(d=>d.id===did?{...d,time:t}:d)});
+  return(<div>{TIMED_MEDS.map(med=>{const doses=timedMeds[med.id]||[];const taken=doses.length>0;return(<div key={med.id} style={{marginBottom:8,borderRadius:9,overflow:"hidden",border:`1px solid ${taken?med.color+"55":C.border}`,background:taken?med.color+"08":"transparent",transition:"all 0.2s"}}><div style={{display:"flex",justifyContent:"space-between",alignItems:"center",padding:"10px 13px"}}><div><div style={{fontSize:13,fontWeight:taken?500:400,color:taken?C.text:C.muted}}>{med.label}</div><div style={{fontSize:10,color:med.color+"88",marginTop:1}}>{med.note}</div></div><button onClick={()=>addDose(med.id)} style={{padding:"4px 12px",borderRadius:7,cursor:"pointer",fontSize:11,fontWeight:500,background:taken?med.color+"22":C.surface,border:`1px solid ${taken?med.color+"66":C.border}`,color:taken?med.color:C.muted}}>+ Dose</button></div>{doses.length>0&&(<div style={{borderTop:`1px solid ${med.color}22`,padding:"7px 13px",display:"flex",flexWrap:"wrap",gap:6}}>{doses.map((dose,i)=>(<div key={dose.id} style={{display:"flex",alignItems:"center",gap:5,background:med.color+"14",border:`1px solid ${med.color}33`,borderRadius:7,padding:"4px 9px"}}><span style={{fontSize:10,color:med.color+"88"}}>Dose {i+1}</span><input type="time" value={dose.time} onChange={e=>updTime(med.id,dose.id,e.target.value)} style={{...inp,width:"auto",padding:"1px 5px",fontSize:12,background:"transparent",border:"none",color:med.color,fontWeight:500}} /><span style={{fontSize:10,color:med.color+"77"}}>{fmt12(dose.time)}</span><button onClick={()=>rmDose(med.id,dose.id)} style={{background:"none",border:"none",color:med.color+"55",cursor:"pointer",fontSize:14,lineHeight:1,padding:0}}>×</button></div>))}</div>)}</div>);})}</div>);
 }
 
 // ─── SPEND LOGGER ────────────────────────────────────────────────────────────
@@ -172,6 +191,17 @@ function Dashboard({dailyLogs,setDailyLogs,groomingLogs,groomingIntervals,userNa
         <h1 style={{...serif,fontSize:32,fontWeight:300,color:C.white,margin:0}}>{greeting}{userName?", "+userName:""}.</h1>
         <div style={{fontSize:13,color:C.muted,marginTop:4}}>{new Date().toLocaleDateString("en-US",{weekday:"long",month:"long",day:"numeric",year:"numeric"})}</div>
       </div>
+    </div>
+
+    {/* Countdowns */}
+    <div style={{display:"flex",gap:10}}>
+      {[{label:"Bachelor Party",date:"2026-07-03",color:C.accent},{label:"Wedding",date:"2026-09-17",color:C.sage}].map(({label,date,color})=>(
+        <div key={label} style={{...card,flex:1,textAlign:"center"}}>
+          <div style={lbl}>{label}</div>
+          <div style={{...serif,fontSize:44,fontWeight:300,color,lineHeight:1.1}}>{daysUntil(date)}</div>
+          <div style={{fontSize:11,color:C.muted,marginTop:3}}>days</div>
+        </div>
+      ))}
     </div>
 
     {/* Stats */}
@@ -349,10 +379,17 @@ function TrackerTab({logs,setLogs}){
       </div>
     </div>
 
-    {/* Supplements */}
+    {/* Medications */}
     <div style={card}>
-      <SHead>Supplements</SHead>
-      <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:6,marginBottom:12}}>{SUPPLEMENTS.map(s=><Check key={s} label={s} color={C.sage} checked={(log.meds||[]).includes(s)} onChange={e=>updArr("meds",s,e.target.checked)} />)}</div>
+      <SHead>Medications & Supplements</SHead>
+      <div style={{marginBottom:14}}>
+        <div style={{fontSize:10,letterSpacing:"0.12em",textTransform:"uppercase",color:C.muted,marginBottom:8,display:"block",fontWeight:500}}>Timed medications</div>
+        <TimedMedLogger log={log} upd={upd} />
+      </div>
+      <div style={{marginBottom:12}}>
+        <div style={{fontSize:10,letterSpacing:"0.12em",textTransform:"uppercase",color:C.muted,marginBottom:8,display:"block",fontWeight:500}}>Supplements</div>
+        <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:6}}>{SUPPLEMENTS.map(s=><Check key={s} label={s} color={C.sage} checked={(log.meds||[]).includes(s)} onChange={e=>updArr("meds",s,e.target.checked)} />)}</div>
+      </div>
       <input value={log.medNote||""} onChange={e=>upd("medNote",e.target.value)} placeholder="Notes..." style={inp} />
     </div>
 
@@ -666,6 +703,19 @@ function WorkoutsTab({logs,setLogs}){
         ))}
       </div>
     )}
+
+    {/* Supplements */}
+    <div style={card}>
+      <SHead>Today's Supplements</SHead>
+      <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:6,marginBottom:10}}>
+        {SUPPLEMENTS.map(s=>{
+          const checked=((logs[date]||{}).meds||[]).includes(s);
+          const tog=checked=>setLogs({...logs,[date]:{...(logs[date]||{}),meds:checked?[...((logs[date]||{}).meds||[]),s]:((logs[date]||{}).meds||[]).filter(x=>x!==s)}});
+          return <Check key={s} label={s} color={C.sage} checked={checked} onChange={e=>tog(e.target.checked)} />;
+        })}
+      </div>
+      <input value={(logs[date]||{}).medNote||""} onChange={e=>setLogs({...logs,[date]:{...(logs[date]||{}),medNote:e.target.value}})} placeholder="Notes..." style={inp} />
+    </div>
   </div>);
 }
 
@@ -789,7 +839,6 @@ const TABS=[
   {id:"tracker",label:"Tracker"},
   {id:"skin",label:"Skin"},
   {id:"workouts",label:"Workouts"},
-  {id:"spend",label:"Spend"},
 ];
 
 function App(){
@@ -863,7 +912,6 @@ function App(){
           {tab==="tracker"&&<TrackerTab logs={dailyLogs} setLogs={setDailyLogs} />}
           {tab==="skin"&&<SkinTab logs={dailyLogs} setLogs={setDailyLogs} groomingLogs={groomingLogs} setGroomingLogs={setGroomingLogs} groomingIntervals={groomingIntervals} setGroomingIntervals={setGroomingIntervals} />}
           {tab==="workouts"&&<WorkoutsTab logs={dailyLogs} setLogs={setDailyLogs} />}
-          {tab==="spend"&&<SpendTab logs={dailyLogs} setLogs={setDailyLogs} />}
         </div>
       </div>
     </div>
