@@ -198,8 +198,8 @@ function Dashboard({dailyLogs,setDailyLogs,groomingLogs,groomingIntervals,userNa
       {[{label:"Bachelor Party",date:"2026-07-03",color:C.accent},{label:"Wedding",date:"2026-09-17",color:C.sage}].map(({label,date,color})=>(
         <div key={label} style={{...card,flex:1,textAlign:"center"}}>
           <div style={lbl}>{label}</div>
-          <div style={{...serif,fontSize:44,fontWeight:300,color,lineHeight:1.1}}>{daysUntil(date)}</div>
-          <div style={{fontSize:11,color:C.muted,marginTop:3}}>days</div>
+          <div style={{...serif,fontSize:44,fontWeight:300,color,lineHeight:1.1}}>{Math.ceil(daysUntil(date)/7)}</div>
+          <div style={{fontSize:11,color:C.muted,marginTop:3}}>weeks</div>
         </div>
       ))}
     </div>
