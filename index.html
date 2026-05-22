@@ -490,12 +490,12 @@ function Dashboard({dailyLogs,setDailyLogs,cycleStart,cycleLength,beautyLogs,int
           {label:"Bachelorette",date:"2026-07-30",color:C.gold},
           {label:"Wedding",date:"2026-09-17",color:C.sage},
         ].map(({label,date,color,sub})=>{
-          const days=daysUntil(new Date(date));
+          const weeks=Math.ceil(daysUntil(new Date(date))/7);
           return(
             <div key={label} style={{...card,flex:1,textAlign:"center"}}>
               <div style={lbl}>{label}</div>
-              <div style={{...serif,fontSize:44,fontWeight:300,color,lineHeight:1.1}}>{days}</div>
-              <div style={{fontSize:11,color:C.muted,marginTop:3}}>days</div>
+              <div style={{...serif,fontSize:44,fontWeight:300,color,lineHeight:1.1}}>{weeks}</div>
+              <div style={{fontSize:11,color:C.muted,marginTop:3}}>weeks</div>
               {sub&&<div style={{fontSize:10,color:C.faint,marginTop:2}}>{sub}</div>}
             </div>
           );
@@ -1864,8 +1864,8 @@ function WeddingTab(){
         {Object.entries(wdates).map(([id,ev])=>(
           <div key={id} style={{...card,flex:1,textAlign:"center"}}>
             <input value={ev.label} onChange={e=>setWdates({...wdates,[id]:{...ev,label:e.target.value}})} style={{...inp,textAlign:"center",fontSize:10,padding:"4px 8px",marginBottom:6,letterSpacing:"0.1em",textTransform:"uppercase",color:C.muted,background:"transparent",border:`1px solid transparent`,borderRadius:6}} onFocus={e=>e.target.style.border=`1px solid ${C.border}`} onBlur={e=>e.target.style.border="1px solid transparent"} />
-            <div style={{...serif,fontSize:46,fontWeight:300,color:colors[id]||C.accent,lineHeight:1.1}}>{daysUntil(new Date(ev.date+"T12:00:00"))}</div>
-            <div style={{fontSize:11,color:C.muted,marginTop:3}}>days</div>
+            <div style={{...serif,fontSize:46,fontWeight:300,color:colors[id]||C.accent,lineHeight:1.1}}>{Math.ceil(daysUntil(new Date(ev.date+"T12:00:00"))/7)}</div>
+            <div style={{fontSize:11,color:C.muted,marginTop:3}}>weeks</div>
             <div style={{marginTop:8}}><input type="date" value={ev.date} onChange={e=>setWdates({...wdates,[id]:{...ev,date:e.target.value}})} style={{...inp,fontSize:10,textAlign:"center"}} /></div>
           </div>
         ))}
