@@ -1569,10 +1569,13 @@ function HairBeautyTab({dailyLogs,beautyLogs,setBeautyLogs,intervals,setInterval
 // ═══════════════════════════════════════════════════════════════════════════════
 // CYCLE + BODY (combined)
 // ═══════════════════════════════════════════════════════════════════════════════
-function CycleTab({dailyLogs}){
+function CycleTab({dailyLogs,cycleStart,setCycleStart,cycleLength,setCycleLength}){
   const {C,card,inp,lbl}=React.useContext(ThemeCtx);
-  const [cycleStart,setCycleStart]=useLS("nm_cycle_start","");
-  const [cycleLength,setCycleLength]=useLS("nm_cycle_length",28);
+  const [draftStart,setDraftStart]=useState(cycleStart);
+  const [draftLength,setDraftLength]=useState(cycleLength);
+  const [applied,setApplied]=useState(false);
+  const hasDraft=draftStart!==cycleStart||draftLength!==cycleLength;
+  const apply=()=>{setCycleStart(draftStart);setCycleLength(draftLength);setApplied(true);setTimeout(()=>setApplied(false),2500);};
   const phase=getCyclePhase(cycleStart,cycleLength);
   const pd=phase?PHASES[phase.phase]:null;
   const daysLeft=phase?(phase.phase==="menstrual"?5-phase.day:phase.phase==="follicular"?13-phase.day:phase.phase==="ovulatory"?16-phase.day:cycleLength-phase.day):null;
@@ -1595,11 +1598,18 @@ function CycleTab({dailyLogs}){
     <div style={{display:"flex",flexDirection:"column",gap:18}}>
       <PTitle sub="Cycle intelligence + lifestyle guidance">Cycle</PTitle>
 
-      <div style={card}>
+      <div style={{...card,borderLeft:`3px solid ${applied?C.sage:hasDraft?C.accent:C.border}`}}>
         <SHead>Setup</SHead>
-        <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:12}}>
-          <div><label style={lbl}>Last Period Start Date</label><input type="date" value={cycleStart} onChange={e=>setCycleStart(e.target.value)} style={inp} /></div>
-          <div><label style={lbl}>Average Cycle Length</label><input type="number" value={cycleLength} onChange={e=>setCycleLength(+e.target.value)} min={21} max={40} style={inp} /></div>
+        <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:12,marginBottom:12}}>
+          <div><label style={lbl}>Last Period Start Date</label><input type="date" value={draftStart} onChange={e=>setDraftStart(e.target.value)} style={inp} /></div>
+          <div><label style={lbl}>Average Cycle Length</label><input type="number" value={draftLength} onChange={e=>setDraftLength(+e.target.value)} min={21} max={40} style={inp} /></div>
+        </div>
+        <div style={{display:"flex",alignItems:"center",gap:12}}>
+          <button onClick={apply} style={{padding:"9px 22px",borderRadius:8,background:applied?C.sage:C.accent,color:C.bg,border:"none",cursor:"pointer",fontSize:13,fontWeight:500,transition:"background 0.2s"}}>
+            {applied?"✓ Applied":"Apply"}
+          </button>
+          {hasDraft&&!applied&&<span style={{fontSize:12,color:C.muted}}>Unsaved — hit Apply to sync throughout</span>}
+          {applied&&<span style={{fontSize:12,color:C.sage}}>Cycle updated everywhere ✓</span>}
         </div>
       </div>
 
@@ -2168,15 +2178,14 @@ const TABS=[
   {id:"skin",label:"Skin"},
   {id:"hair",label:"Beauty"},
   {id:"cycle",label:"Cycle"},
-  {id:"spend",label:"Spend"},
   {id:"wedding",label:"Wedding"},
 ];
 
 function App(){
   const [tab,setTab]=useState("dashboard");
   const [dailyLogs,setDailyLogs]=useLS("nm_daily",{});
-  const [cycleStart]=useLS("nm_cycle_start","");
-  const [cycleLength]=useLS("nm_cycle_length",28);
+  const [cycleStart,setCycleStart]=useLS("nm_cycle_start","");
+  const [cycleLength,setCycleLength]=useLS("nm_cycle_length",28);
   const [beautyLogs,setBeautyLogs]=useLS("nm_beauty",{});
   const [intervals,setIntervals]=useLS("nm_beauty_intervals",{});
   const [showData,setShowData]=useState(false);
@@ -2251,8 +2260,7 @@ function App(){
           {tab==="daily"&&<DailyLog logs={dailyLogs} setLogs={setDailyLogs} cycleStart={cycleStart} cycleLength={cycleLength} />}
           {tab==="skin"&&<SkinTab logs={dailyLogs} setLogs={setDailyLogs} cycleStart={cycleStart} cycleLength={cycleLength} />}
           {tab==="hair"&&<HairBeautyTab dailyLogs={dailyLogs} beautyLogs={beautyLogs} setBeautyLogs={setBeautyLogs} intervals={intervals} setIntervals={setIntervals} />}
-          {tab==="cycle"&&<CycleTab dailyLogs={dailyLogs} />}
-          {tab==="spend"&&<SpendTab logs={dailyLogs} setLogs={setDailyLogs} />}
+          {tab==="cycle"&&<CycleTab dailyLogs={dailyLogs} cycleStart={cycleStart} setCycleStart={setCycleStart} cycleLength={cycleLength} setCycleLength={setCycleLength} />}
           {tab==="wedding"&&<WeddingTab />}
         </div>
       </div>
